@@ -36,7 +36,7 @@ function initSchema(): void {
 
     CREATE TABLE IF NOT EXISTS clients (
       id TEXT PRIMARY KEY,
-      username TEXT UNIQUE NOT NULL,
+      username TEXT NOT NULL,
       password TEXT NOT NULL,
       protocol TEXT NOT NULL,
       plan_id TEXT,
@@ -45,7 +45,8 @@ function initSchema(): void {
       created_by TEXT,
       extra_data TEXT DEFAULT '{}',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(username, protocol)
     );
 
     CREATE TABLE IF NOT EXISTS plans (

@@ -184,6 +184,16 @@ let token = localStorage.getItem('ntw_token') || '';
 let currentAdmin = null;
 let currentPage = 'dashboard';
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 // ─── API ─────────────────────────────────────────────────────────────────────
 async function api(method, path, body) {
   const opts = {
@@ -399,11 +409,12 @@ async function submitCreateClient(e) {
 
 function showAccountDetails(username, protocol, data) {
   const lines = formatAccountDetails(username, protocol, data);
+  setCopyText(lines);
   openModal(`
-    <h3>✅ Account Created — ${username}</h3>
-    <div class="account-box">${lines}</div>
+    <h3>✅ Account Created — ${escHtml(username)}</h3>
+    <div class="account-box">${escHtml(lines)}</div>
     <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="copyText(\`${lines}\`)">Copy</button>
+      <button class="btn btn-secondary" onclick="copyPending()">Copy</button>
       <button class="btn btn-primary" onclick="closeModal()">Close</button>
     </div>`);
 }
@@ -479,15 +490,21 @@ function copyText(text) {
   navigator.clipboard?.writeText(text).then(() => toast('Copied!')).catch(() => toast('Copy failed', 'error'));
 }
 
+// Global store for pending copy content (avoids XSS via template literal injection)
+let _pendingCopyText = '';
+function setCopyText(text) { _pendingCopyText = text; }
+function copyPending() { copyText(_pendingCopyText); }
+
 async function viewClientDetails(id) {
   try {
     const c = await api('GET', `/clients/${id}`);
     const lines = formatAccountDetails(c.username, c.protocol, c.extra_data);
+    setCopyText(lines);
     openModal(`
-      <h3>📋 ${c.username} — ${c.protocol.toUpperCase()}</h3>
-      <div class="account-box">${lines}</div>
+      <h3>📋 ${escHtml(c.username)} — ${escHtml(c.protocol.toUpperCase())}</h3>
+      <div class="account-box">${escHtml(lines)}</div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="copyText(\`${lines.replace(/`/g,'\\`')}\`)">Copy</button>
+        <button class="btn btn-secondary" onclick="copyPending()">Copy</button>
         <button class="btn btn-primary" onclick="closeModal()">Close</button>
       </div>`);
   } catch (e) { toast(e.message, 'error'); }

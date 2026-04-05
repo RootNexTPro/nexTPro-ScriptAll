@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
 import { getDb, seedSuperAdmin } from './db';
@@ -56,9 +57,18 @@ seedSuperAdmin(adminUser, adminPass);
 const app = express();
 
 app.use(cors({
-  origin: '*',
+  origin: (origin, callback) => {
+    // Allow same-origin requests (no origin header) and localhost for dev
+    if (!origin || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
+      callback(null, true);
+    } else {
+      // For production: restrict to same-host access (no external cross-origin)
+      callback(null, false);
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 
 app.use(express.json({ limit: '1mb' }));
@@ -70,8 +80,17 @@ if (fs.existsSync(PUBLIC_DIR)) {
   app.use(express.static(PUBLIC_DIR));
 }
 
+// Rate limiting — strict limit on auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,                   // max 20 login attempts per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' }
+});
+
 // API routes
-app.use('/api/auth', authRouter);
+app.use('/api/auth', authLimiter, authRouter);
 app.use('/api/admins', adminsRouter);
 app.use('/api/clients', clientsRouter);
 app.use('/api/plans', plansRouter);

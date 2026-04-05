@@ -1,10 +1,27 @@
 import { execSync, spawnSync } from 'child_process';
-import path from 'path';
+import crypto from 'crypto';
 import fs from 'fs';
 
-const SCRIPTS_DIR = process.env.NEXUS_SCRIPTS_DIR || '/usr/local/sbin';
 const XRAY_CONFIG = process.env.XRAY_CONFIG || '/etc/xray/config.json';
-const ZIVPN_DB = process.env.ZIVPN_DB || '/etc/zivpn/users.db';
+
+// ─── Input validation ─────────────────────────────────────────────────────────
+/** Only allow safe alphanumeric + hyphen + underscore usernames (no shell metacharacters) */
+const SAFE_USERNAME_RE = /^[a-zA-Z0-9_-]{1,32}$/;
+
+function validateUsername(username: string): void {
+  if (!SAFE_USERNAME_RE.test(username)) {
+    throw new Error(
+      `Invalid username '${username}': only letters, digits, hyphens and underscores allowed (max 32 chars)`
+    );
+  }
+}
+
+function validateDays(days: number): void {
+  if (!Number.isInteger(days) || days < 1 || days > 3650) {
+    throw new Error('days must be an integer between 1 and 3650');
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface AccountResult {
   success: boolean;
@@ -13,9 +30,10 @@ export interface AccountResult {
   raw?: string;
 }
 
+
 function getServerIp(): string {
   try {
-    return execSync('curl -sS ipv4.icanhazip.com', { timeout: 5000 }).toString().trim();
+    return execSync('curl -sS ipv4.icanhazip.com', { timeout: 5000, encoding: 'utf8' }).trim();
   } catch {
     return 'unknown';
   }
@@ -53,22 +71,32 @@ function getSlowDnsNsDomain(): string {
 
 export function createSshAccount(username: string, password: string, days: number): AccountResult {
   try {
-    // Check if user exists
+    validateUsername(username);
+    validateDays(days);
+
+    // Check if user exists (safe: username is validated above)
     const check = spawnSync('id', [username], { encoding: 'utf8' });
     if (check.status === 0) {
       return { success: false, error: `User '${username}' already exists` };
     }
 
-    // Create the user
-    const expiry = execSync(`date -d "${days} days" +"%Y-%m-%d"`, { encoding: 'utf8' }).trim();
+    // Create the user — use spawnSync for all external commands to avoid shell injection
+    const expiryResult = spawnSync('date', ['-d', `${days} days`, '+%Y-%m-%d'], { encoding: 'utf8' });
+    const expiry = expiryResult.stdout.trim();
+
     spawnSync('useradd', ['-e', expiry, '-s', '/bin/false', '-M', username], { encoding: 'utf8' });
-    execSync(`echo "${username}:${password}" | chpasswd`);
+    // Use chpasswd via stdin to avoid embedding credentials in command line
+    spawnSync('chpasswd', [], { input: `${username}:${password}`, encoding: 'utf8' });
 
     const domain = getDomain();
     const myip = getServerIp();
     const pub = getSlowDnsPub();
     const dns = getSlowDnsNsDomain();
-    const actualExpiry = execSync(`chage -l ${username} | grep "Account expires" | awk -F': ' '{print $2}'`, { encoding: 'utf8' }).trim();
+    const chageResult = spawnSync('chage', ['-l', username], { encoding: 'utf8' });
+    const actualExpiry = chageResult.stdout
+      .split('\n')
+      .find(l => l.includes('Account expires'))
+      ?.split(':')[1]?.trim() || expiry;
 
     return {
       success: true,
@@ -85,7 +113,7 @@ export function createSshAccount(username: string, password: string, days: numbe
         stunnel_ports: '447, 777',
         ws_ntls_ports: '80, 8880',
         ws_tls_port: 443,
-        udpgw_ports: '7100–7900',
+        udpgw_ports: '7100-7900',
         squid_ports: '3128, 8880',
         openvpn_ports: 'TCP 1194, SSL 2200, OHP 8000',
         slowdns_ports: '22,53,5300,80,443',
@@ -101,14 +129,22 @@ export function createSshAccount(username: string, password: string, days: numbe
 
 export function renewSshAccount(username: string, days: number): AccountResult {
   try {
+    validateUsername(username);
+    validateDays(days);
+
     const check = spawnSync('id', [username], { encoding: 'utf8' });
     if (check.status !== 0) {
       return { success: false, error: `User '${username}' not found` };
     }
 
-    const expiry = execSync(`date -d "${days} days" +"%Y-%m-%d"`, { encoding: 'utf8' }).trim();
-    execSync(`chage -E "${expiry}" "${username}"`);
-    const actualExpiry = execSync(`chage -l ${username} | grep "Account expires" | awk -F': ' '{print $2}'`, { encoding: 'utf8' }).trim();
+    const expiryResult = spawnSync('date', ['-d', `${days} days`, '+%Y-%m-%d'], { encoding: 'utf8' });
+    const expiry = expiryResult.stdout.trim();
+    spawnSync('chage', ['-E', expiry, username], { encoding: 'utf8' });
+    const chageResult = spawnSync('chage', ['-l', username], { encoding: 'utf8' });
+    const actualExpiry = chageResult.stdout
+      .split('\n')
+      .find(l => l.includes('Account expires'))
+      ?.split(':')[1]?.trim() || expiry;
 
     return { success: true, data: { username, expiry: actualExpiry } };
   } catch (err) {
@@ -118,6 +154,7 @@ export function renewSshAccount(username: string, days: number): AccountResult {
 
 export function deleteSshAccount(username: string): AccountResult {
   try {
+    validateUsername(username);
     const check = spawnSync('id', [username], { encoding: 'utf8' });
     if (check.status !== 0) {
       return { success: false, error: `User '${username}' not found` };
@@ -131,7 +168,8 @@ export function deleteSshAccount(username: string): AccountResult {
 
 export function suspendSshAccount(username: string): AccountResult {
   try {
-    execSync(`chage -E 0 "${username}"`);
+    validateUsername(username);
+    spawnSync('chage', ['-E', '0', username], { encoding: 'utf8' });
     return { success: true, data: { username, status: 'suspended' } };
   } catch (err) {
     return { success: false, error: String(err) };
@@ -151,11 +189,11 @@ function readXrayConfig(): Record<string, unknown> {
 
 function writeXrayConfig(cfg: Record<string, unknown>): void {
   fs.writeFileSync(XRAY_CONFIG, JSON.stringify(cfg, null, 2));
-  try { execSync('systemctl restart xray'); } catch {}
+  spawnSync('systemctl', ['restart', 'xray'], { encoding: 'utf8' });
 }
 
 function generateUUID(): string {
-  return execSync('cat /proc/sys/kernel/random/uuid', { encoding: 'utf8' }).trim();
+  return crypto.randomUUID();
 }
 
 type XrayInbound = {
@@ -175,12 +213,16 @@ function findInbound(cfg: Record<string, unknown>, protocol: string): XrayInboun
 
 export function createXrayVmessAccount(username: string, days: number): AccountResult {
   try {
+    validateUsername(username);
+    validateDays(days);
+
     const cfg = readXrayConfig();
     const inbound = findInbound(cfg, 'vmess');
     if (!inbound) return { success: false, error: 'VMess inbound not found in xray config' };
 
     const uuid = generateUUID();
-    const expiry = execSync(`date -d "${days} days" +"%Y-%m-%d"`, { encoding: 'utf8' }).trim();
+    const expiryResult = spawnSync('date', ['-d', `${days} days`, '+%Y-%m-%d'], { encoding: 'utf8' });
+    const expiry = expiryResult.stdout.trim();
 
     inbound.settings = inbound.settings || {};
     inbound.settings.clients = inbound.settings.clients || [];
@@ -194,7 +236,7 @@ export function createXrayVmessAccount(username: string, days: number): AccountR
     const cfgStr = JSON.stringify(cfg, null, 2);
     const marked = `### ${username} ${expiry}\n${cfgStr}`;
     fs.writeFileSync(XRAY_CONFIG, marked);
-    try { execSync('systemctl restart xray'); } catch {}
+    spawnSync('systemctl', ['restart', 'xray'], { encoding: 'utf8' });
 
     const domain = getDomain();
     const myip = getServerIp();
@@ -221,12 +263,16 @@ export function createXrayVmessAccount(username: string, days: number): AccountR
 
 export function createXrayVlessAccount(username: string, days: number): AccountResult {
   try {
+    validateUsername(username);
+    validateDays(days);
+
     const cfg = readXrayConfig();
     const inbound = findInbound(cfg, 'vless');
     if (!inbound) return { success: false, error: 'VLESS inbound not found in xray config' };
 
     const uuid = generateUUID();
-    const expiry = execSync(`date -d "${days} days" +"%Y-%m-%d"`, { encoding: 'utf8' }).trim();
+    const expiryResult = spawnSync('date', ['-d', `${days} days`, '+%Y-%m-%d'], { encoding: 'utf8' });
+    const expiry = expiryResult.stdout.trim();
 
     inbound.settings = inbound.settings || {};
     inbound.settings.clients = inbound.settings.clients || [];
@@ -239,7 +285,7 @@ export function createXrayVlessAccount(username: string, days: number): AccountR
     const cfgStr = JSON.stringify(cfg, null, 2);
     const marked = `#& ${username} ${expiry}\n${cfgStr}`;
     fs.writeFileSync(XRAY_CONFIG, marked);
-    try { execSync('systemctl restart xray'); } catch {}
+    spawnSync('systemctl', ['restart', 'xray'], { encoding: 'utf8' });
 
     const domain = getDomain();
     const myip = getServerIp();
@@ -266,11 +312,15 @@ export function createXrayVlessAccount(username: string, days: number): AccountR
 
 export function createXrayTrojanAccount(username: string, password: string, days: number): AccountResult {
   try {
+    validateUsername(username);
+    validateDays(days);
+
     const cfg = readXrayConfig();
     const inbound = findInbound(cfg, 'trojan');
     if (!inbound) return { success: false, error: 'Trojan inbound not found in xray config' };
 
-    const expiry = execSync(`date -d "${days} days" +"%Y-%m-%d"`, { encoding: 'utf8' }).trim();
+    const expiryResult = spawnSync('date', ['-d', `${days} days`, '+%Y-%m-%d'], { encoding: 'utf8' });
+    const expiry = expiryResult.stdout.trim();
 
     inbound.settings = inbound.settings || {};
     inbound.settings.clients = inbound.settings.clients || [];
@@ -283,7 +333,7 @@ export function createXrayTrojanAccount(username: string, password: string, days
     const cfgStr = JSON.stringify(cfg, null, 2);
     const marked = `#! ${username} ${expiry}\n${cfgStr}`;
     fs.writeFileSync(XRAY_CONFIG, marked);
-    try { execSync('systemctl restart xray'); } catch {}
+    spawnSync('systemctl', ['restart', 'xray'], { encoding: 'utf8' });
 
     const domain = getDomain();
     const myip = getServerIp();
@@ -307,6 +357,9 @@ export function createXrayTrojanAccount(username: string, password: string, days
 
 export function createZipVpnAccount(username: string, password: string, days: number): AccountResult {
   try {
+    validateUsername(username);
+    validateDays(days);
+
     // ZipVPN uses /etc/zivpn/users.db (username password expiry)
     const zivpnDb = '/etc/zivpn/users.db';
     const zvpnJson = '/etc/zivpn/zvpn.json';
@@ -315,7 +368,8 @@ export function createZipVpnAccount(username: string, password: string, days: nu
       return { success: false, error: 'ZipVPN not installed' };
     }
 
-    const expiry = execSync(`date -d "${days} days" +"%Y-%m-%d"`, { encoding: 'utf8' }).trim();
+    const expiryResult = spawnSync('date', ['-d', `${days} days`, '+%Y-%m-%d'], { encoding: 'utf8' });
+    const expiry = expiryResult.stdout.trim();
 
     // Add to users.db
     fs.appendFileSync(zivpnDb, `${username} ${password} ${expiry}\n`);
@@ -331,7 +385,7 @@ export function createZipVpnAccount(username: string, password: string, days: nu
       } catch {}
     }
 
-    try { execSync('systemctl restart zivpn'); } catch {}
+    spawnSync('systemctl', ['restart', 'zivpn'], { encoding: 'utf8' });
 
     const domain = getDomain();
 
