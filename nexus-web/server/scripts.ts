@@ -1,4 +1,4 @@
-import { execSync, spawnSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import crypto from 'crypto';
 import fs from 'fs';
 
@@ -30,13 +30,17 @@ export interface AccountResult {
   raw?: string;
 }
 
-
+// Cache IP to avoid repeated network calls
+let _cachedIp = '';
 function getServerIp(): string {
-  try {
-    return execSync('curl -sS ipv4.icanhazip.com', { timeout: 5000, encoding: 'utf8' }).trim();
-  } catch {
-    return 'unknown';
-  }
+  if (_cachedIp) return _cachedIp;
+  // Use spawnSync with safe argument list — no shell interpolation
+  const result = spawnSync('curl', ['-s4', '--max-time', '5', 'https://ipv4.icanhazip.com'], {
+    encoding: 'utf8',
+    timeout: 6000
+  });
+  _cachedIp = result.stdout?.trim() || 'unknown';
+  return _cachedIp;
 }
 
 function getDomain(): string {

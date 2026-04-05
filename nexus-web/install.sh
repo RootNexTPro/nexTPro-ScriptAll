@@ -98,7 +98,7 @@ main() {
 
   # ── Generate JWT secret ──
   local jwt_secret
-  jwt_secret=$(head -c 32 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 48)
+  jwt_secret=$(openssl rand -hex 48 2>/dev/null || head -c 48 /dev/urandom | base64 | tr -d '=\n+/')
 
   # ── Install system dependencies ──
   log_info "Installing system dependencies..."

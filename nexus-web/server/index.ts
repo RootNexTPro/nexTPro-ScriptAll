@@ -33,17 +33,10 @@ if (config.jwt_secret && !process.env.NEXUS_JWT_SECRET) {
 }
 
 const PORT_CANDIDATES = [2087, 2096, 8787, 3001, 9090];
-const configuredPort = config.port || parseInt(process.env.NEXUS_PORT || '0', 10);
-
-function findAvailablePort(candidates: number[], preferred?: number): number {
-  // Try preferred port first
-  if (preferred && preferred > 0) {
-    return preferred;
-  }
-  return candidates[0]; // Use first candidate; actual binding will fail gracefully if occupied
-}
-
-const PORT = findAvailablePort(PORT_CANDIDATES, configuredPort);
+// Prefer explicitly configured port; fall back to candidate list
+const configuredPort = config.port ?? (
+  process.env.NEXUS_PORT ? parseInt(process.env.NEXUS_PORT, 10) : 0
+);
 
 // ─── Bootstrap super admin ────────────────────────────────────────────────────
 const adminUser = config.admin_user || process.env.NEXUS_ADMIN_USER || 'admin';
@@ -89,12 +82,21 @@ const authLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later.' }
 });
 
+// General API limiter (protects all authenticated endpoints)
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 300,            // generous limit for admin operations
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please slow down.' }
+});
+
 // API routes
 app.use('/api/auth', authLimiter, authRouter);
-app.use('/api/admins', adminsRouter);
-app.use('/api/clients', clientsRouter);
-app.use('/api/plans', plansRouter);
-app.use('/api/logs', logsRouter);
+app.use('/api/admins', apiLimiter, adminsRouter);
+app.use('/api/clients', apiLimiter, clientsRouter);
+app.use('/api/plans', apiLimiter, plansRouter);
+app.use('/api/logs', apiLimiter, logsRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {
