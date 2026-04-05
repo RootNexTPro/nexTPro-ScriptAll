@@ -76,6 +76,39 @@ def create_zivpn_account(user, password, days, created_by_id=None):
     )
     return True, msg
 
+def get_zivpn_usernames():
+    meta_dir = '/etc/nexus_bot/zivpn_accounts'
+    if not os.path.exists(meta_dir):
+        return []
+    return [f.replace('.txt', '') for f in sorted(os.listdir(meta_dir)) if f.endswith('.txt')]
+
+def get_zivpn_account_details(user):
+    meta_file = f"/etc/nexus_bot/zivpn_accounts/{user}.txt"
+    if not os.path.exists(meta_file):
+        return False, f"❌ Compte ZIVPN <code>{user}</code> introuvable."
+    data = {}
+    with open(meta_file, 'r') as f:
+        for line in f:
+            if '=' in line:
+                k, v = line.strip().split('=', 1)
+                data[k] = v
+    password = data.get('password', 'N/A')
+    exp_date = data.get('expiry', 'N/A')
+    domain = get_file('/etc/xray/domain', 'votre-domaine.com')
+    myip = subprocess.getoutput("wget -qO- ipv4.icanhazip.com 2>/dev/null || curl -s ipv4.icanhazip.com")
+    msg = (
+        f"┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
+        f"┃ <b>ZIVPN ACCOUNT DETAILS</b>\n"
+        f"┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"
+        f"👤 <b>Username:</b> <code>{user}</code>\n"
+        f"🔑 <b>Password:</b> <code>{password}</code>\n"
+        f"⏳ <b>Expiry Date:</b> {exp_date}\n"
+        f"🖥️ <b>IPV4:</b> <code>{myip}</code>\n"
+        f"🌐 <b>Domain:</b> <code>{domain}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    )
+    return True, msg
+
 def renew_zivpn_account(user, days):
     db_file = '/etc/zivpn/user.db'
     if not os.path.exists(db_file):
@@ -120,6 +153,13 @@ def renew_zivpn_account(user, days):
             for l in meta_lines:
                 f.write(f"expiry={new_exp}\n" if l.startswith("expiry=") else l)
 
+    ok, details = get_zivpn_account_details(user)
+    if ok:
+        renewal_header = (
+            f"✅ <b>COMPTE ZIVPN RENOUVELÉ</b>\n"
+            f"📅 <b>Ancienne expiration:</b> {current_exp} → <b>{new_exp}</b>\n\n"
+        )
+        return True, renewal_header + details
     return True, (
         f"✅ <b>COMPTE ZIVPN RENOUVELÉ</b>\n\n"
         f"👤 <b>Username:</b> <code>{user}</code>\n"

@@ -113,6 +113,64 @@ def create_xray_account(protocol, user, days, created_by_id=None):
     )
     return True, msg
 
+def get_xray_usernames(protocol):
+    db_dir = '/etc/nexus_bot/xray_accounts'
+    if not os.path.exists(db_dir):
+        return []
+    return [f[len(protocol)+1:].replace('.txt', '') for f in sorted(os.listdir(db_dir)) if f.startswith(f"{protocol}_") and f.endswith('.txt')]
+
+def get_xray_account_details(protocol, user):
+    db_file = f"/etc/nexus_bot/xray_accounts/{protocol}_{user}.txt"
+    if not os.path.exists(db_file):
+        return False, f"❌ Compte {protocol.upper()} <code>{user}</code> introuvable."
+    data = {}
+    with open(db_file, 'r') as f:
+        for line in f:
+            if '=' in line:
+                k, v = line.strip().split('=', 1)
+                data[k] = v
+    client_id = data.get('uuid', 'N/A')
+    exp_date = data.get('expiry', 'N/A')
+    domain = get_domain()
+
+    if protocol == 'vless':
+        link_tls = f"vless://{client_id}@{domain}:443?path=/vless&security=tls&encryption=none&type=ws#{user}"
+        link_ntls = f"vless://{client_id}@{domain}:80?path=/vless&encryption=none&type=ws#{user}"
+        link_grpc = f"vless://{client_id}@{domain}:443?mode=gun&security=tls&encryption=none&type=grpc&serviceName=vless-grpc#{user}"
+    elif protocol == 'vmess':
+        ws_tls = f'{{"v":"2","ps":"{user}","add":"{domain}","port":"443","id":"{client_id}","aid":"0","net":"ws","path":"/vmess","type":"none","host":"","tls":"tls"}}'
+        ws_ntls = f'{{"v":"2","ps":"{user}","add":"{domain}","port":"80","id":"{client_id}","aid":"0","net":"ws","path":"/vmess","type":"none","host":"","tls":"none"}}'
+        grpc = f'{{"v":"2","ps":"{user}","add":"{domain}","port":"443","id":"{client_id}","aid":"0","net":"grpc","path":"vmess-grpc","type":"none","host":"","tls":"tls"}}'
+        link_tls = "vmess://" + base64.b64encode(ws_tls.encode('utf-8')).decode('utf-8')
+        link_ntls = "vmess://" + base64.b64encode(ws_ntls.encode('utf-8')).decode('utf-8')
+        link_grpc = "vmess://" + base64.b64encode(grpc.encode('utf-8')).decode('utf-8')
+    elif protocol == 'trojan':
+        link_tls = f"trojan://{client_id}@{domain}:443?path=/trws&security=tls&encryption=none&host={domain}&type=ws#{user}"
+        link_ntls = f"trojan://{client_id}@{domain}:80?path=/trws&encryption=none&security=none&host={domain}&type=ws#{user}"
+        link_grpc = f"trojan://{client_id}@{domain}:443?mode=gun&security=tls&type=grpc&serviceName=trojan-grpc&sni={domain}#{user}"
+    elif protocol == 'socks':
+        link_tls = f"socks5://{user}:{client_id}@{domain}:1080"
+        link_ntls = f"socks5://{user}:{client_id}@{domain}:1080"
+        link_grpc = link_ntls
+    else:
+        return False, f"❌ Protocole inconnu: {protocol}"
+
+    msg = (
+        f"┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
+        f"┃ <b>{protocol.upper()} ACCOUNT DETAILS</b>\n"
+        f"┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"
+        f"👤 <b>Username:</b> <code>{user}</code>\n"
+        f"⏳ <b>Expired:</b> <code>{exp_date}</code>\n"
+        f"🔑 <b>UUID/Pass:</b> <code>{client_id}</code>\n"
+        f"🌐 <b>Domain:</b> <code>{domain}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🔗 <b>TLS (443):</b>\n<code>{link_tls}</code>\n\n"
+        f"🔗 <b>NTLS (80):</b>\n<code>{link_ntls}</code>\n\n"
+        f"🔗 <b>GRPC (443):</b>\n<code>{link_grpc}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    )
+    return True, msg
+
 def renew_xray_account(protocol, user, days):
     db_file = f"/etc/nexus_bot/xray_accounts/{protocol}_{user}.txt"
     if not os.path.exists(db_file):
@@ -163,14 +221,20 @@ def renew_xray_account(protocol, user, days):
     with open(db_file, 'w') as f:
         f.writelines(new_db_lines)
 
-    msg = (
+    ok, details = get_xray_account_details(protocol, user)
+    if ok:
+        renewal_header = (
+            f"✅ <b>COMPTE {protocol.upper()} RENOUVELÉ</b>\n"
+            f"📅 <b>Ancienne expiration:</b> {current_exp} → <b>{new_exp}</b>\n\n"
+        )
+        return True, renewal_header + details
+    return True, (
         f"✅ <b>COMPTE {protocol.upper()} RENOUVELÉ</b>\n\n"
         f"👤 <b>Username:</b> <code>{user}</code>\n"
         f"📅 <b>Ancienne expiration:</b> {current_exp}\n"
         f"➕ <b>Jours ajoutés:</b> {days}\n"
         f"📅 <b>Nouvelle expiration:</b> {new_exp}\n"
     )
-    return True, msg
 
 def delete_xray_account(protocol, user):
     if not os.path.exists(XRAY_CONF):

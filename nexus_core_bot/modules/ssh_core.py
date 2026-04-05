@@ -43,7 +43,7 @@ def create_ssh_account(user, password, days, created_by_id=None):
             f"🔌 <b>Ports:</b>\n"
             f"  OpenSSH(22), Dropbear(109,143)\n"
             f"  Stunnel(447,777), WS(80,443)\n"
-            f"  UDPGW(7100-7900), Squid(3128,8080)\n"
+            f"  UDPGW(7100-7900), Squid(3128,8880)\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🚀 <b>UDP Custom:</b>\n"
             f"<code>{myip}:1-65535@{user}:{password}</code>\n"
@@ -58,6 +58,54 @@ def create_ssh_account(user, password, days, created_by_id=None):
         )
         return True, msg
     return False, f"❌ Échec de la création:\n<code>{res.stderr}</code>"
+
+def get_ssh_usernames():
+    db_dir = '/etc/nexus_bot/ssh_accounts'
+    if not os.path.exists(db_dir):
+        return []
+    return [f.replace('.txt', '') for f in sorted(os.listdir(db_dir)) if f.endswith('.txt')]
+
+def get_ssh_account_details(user):
+    db_file = f"/etc/nexus_bot/ssh_accounts/{user}.txt"
+    if not os.path.exists(db_file):
+        return False, f"❌ Compte SSH <code>{user}</code> introuvable."
+    data = {}
+    with open(db_file, 'r') as f:
+        for line in f:
+            if '=' in line:
+                k, v = line.strip().split('=', 1)
+                data[k] = v
+    password = data.get('password', 'N/A')
+    exp_date = data.get('expiry', 'N/A')
+    domain, pub_key, ns_domain, myip = _server_info()
+    msg = (
+        f"┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
+        f"┃ <b>SSH ACCOUNT DETAILS</b>\n"
+        f"┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"
+        f"👤 <b>Username:</b> <code>{user}</code>\n"
+        f"🔑 <b>Password:</b> <code>{password}</code>\n"
+        f"⏳ <b>Expiry Date:</b> {exp_date}\n"
+        f"🖥️ <b>Host/IP:</b> <code>{myip}</code>\n"
+        f"🌐 <b>Domain:</b> <code>{domain}</code>\n"
+        f"📛 <b>NS Domain:</b> <code>{ns_domain}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🔌 <b>Ports:</b>\n"
+        f"  OpenSSH(22), Dropbear(109,143)\n"
+        f"  Stunnel(447,777), WS(80,443)\n"
+        f"  UDPGW(7100-7900), Squid(3128,8880)\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🚀 <b>UDP Custom:</b>\n"
+        f"<code>{myip}:1-65535@{user}:{password}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🐌 <b>Slow DNS PUB:</b>\n"
+        f"<code>{pub_key}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📦 <b>Payload WS:</b>\n"
+        f"<code>GET / HTTP/1.1[crlf]Host: {domain}[crlf]Upgrade: websocket[crlf][crlf]</code>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📥 <b>OpenVPN:</b> https://{domain}:2081\n"
+    )
+    return True, msg
 
 def renew_ssh_account(user, days):
     if not subprocess.run(f"id {user}", shell=True, capture_output=True).returncode == 0:
@@ -78,14 +126,29 @@ def renew_ssh_account(user, days):
     subprocess.run(f"usermod -e {new_exp} {user}", shell=True)
     subprocess.run(f"passwd -u {user}", shell=True, capture_output=True)
 
-    msg = (
+    # Update stored expiry
+    db_file = f"/etc/nexus_bot/ssh_accounts/{user}.txt"
+    if os.path.exists(db_file):
+        with open(db_file, 'r') as f:
+            db_lines = f.readlines()
+        with open(db_file, 'w') as f:
+            for l in db_lines:
+                f.write(f"expiry={new_exp}\n" if l.startswith("expiry=") else l)
+
+    ok, details = get_ssh_account_details(user)
+    if ok:
+        renewal_header = (
+            f"✅ <b>COMPTE SSH RENOUVELÉ</b>\n"
+            f"📅 <b>Ancienne expiration:</b> {current_exp} → <b>{new_exp}</b>\n\n"
+        )
+        return True, renewal_header + details
+    return True, (
         f"✅ <b>COMPTE SSH RENOUVELÉ</b>\n\n"
         f"👤 <b>Username:</b> <code>{user}</code>\n"
         f"📅 <b>Ancienne expiration:</b> {current_exp}\n"
         f"➕ <b>Jours ajoutés:</b> {days}\n"
         f"📅 <b>Nouvelle expiration:</b> {new_exp}\n"
     )
-    return True, msg
 
 def delete_ssh_account(user):
     if subprocess.run(f"id {user}", shell=True, capture_output=True).returncode != 0:
