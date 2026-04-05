@@ -4,7 +4,7 @@ import uuid
 import subprocess
 import os
 
-# Ajuste ce chemin selon où ton script Dotycat stocke sa config Xray
+# Ajuste ce chemin selon où ton script Nexus Tunnel Pro stocke sa config Xray
 XRAY_CONFIG_PATH = "/usr/local/etc/xray/config.json" 
 
 def create_vless_user(username, bug_host="bug.cdn.com"):

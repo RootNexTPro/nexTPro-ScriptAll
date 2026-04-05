@@ -112,7 +112,7 @@ cat /etc/xray/xray.key /etc/xray/xray.crt > "$PEM_FILE"
 else
 echo "[*] No certs found, generating self-signed certificate ..."
 openssl req -new -x509 -days 1095 -nodes \
--subj "/C=MY/ST=Selangor/L=ShahAlam/O=dotycat/OU=stunnel/CN=$(hostname -f)/emailAddress=admin@localhost" \
+-subj "/C=MY/ST=Selangor/L=ShahAlam/O=nexustunnelpro/OU=stunnel/CN=$(hostname -f)/emailAddress=admin@localhost" \
 -out "$ETC_DIR/stunnel.crt" -keyout "$ETC_DIR/stunnel.key"
 cat "$ETC_DIR/stunnel.key" "$ETC_DIR/stunnel.crt" > "$PEM_FILE"
 fi

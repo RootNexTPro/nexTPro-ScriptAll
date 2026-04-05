@@ -38,7 +38,7 @@ def send_welcome(message):
         InlineKeyboardButton("🟣 ZIVPN / SlowDNS", callback_data="menu_udp"),
         InlineKeyboardButton("📊 Statut du Serveur", callback_data="menu_status")
     )
-    bot.send_message(message.chat.id, "🚀 *Panel de Contrôle Dotycat*\nSélectionnez une option :", parse_mode="Markdown", reply_markup=markup)
+    bot.send_message(message.chat.id, "🚀 *Panel de Contrôle Nexus Tunnel Pro*\nSélectionnez une option :", parse_mode="Markdown", reply_markup=markup)
 
 # --- ROUTEUR DE BOUTONS ---
 @bot.callback_query_handler(func=lambda call: True)

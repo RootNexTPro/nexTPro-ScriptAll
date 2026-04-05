@@ -11,7 +11,7 @@ TIMEOUT = 60
 DEFAULT_HOST = "127.0.0.1:109"
 RESPONSE = (
     b"HTTP/1.1 200 Connection Established\r\n"
-    b"Proxy-Agent: DotyCat-Proxy\r\n\r\n"
+    b"Proxy-Agent: NexusTunnelPro-Proxy\r\n\r\n"
 )
 
 
@@ -207,7 +207,7 @@ def parse_args(argv):
 
 def main():
     parse_args(sys.argv[1:])
-    print("\n--- DotyCat Python Proxy ---")
+    print("\n--- Nexus Tunnel Pro Python Proxy ---")
     print(f"Listening addr: {LISTENING_ADDR}")
     print(f"Listening port: {LISTENING_PORT}\n")
     server = Server(LISTENING_ADDR, LISTENING_PORT)

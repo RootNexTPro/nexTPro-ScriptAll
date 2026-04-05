@@ -1,8 +1,8 @@
 #!/bin/bash
 # Fichier : install_bot.sh
-# Rôle : Installation automatisée du Bot Telegram Dotycat
+# Rôle : Installation automatisée du Bot Telegram Nexus Tunnel Pro
 
-echo -e "\e[32m[+] Démarrage de l'installation du Bot Telegram Dotycat...\e[0m"
+echo -e "\e[32m[+] Démarrage de l'installation du Bot Telegram Nexus Tunnel Pro...\e[0m"
 
 # 1. Mise à jour et dépendances
 echo -e "\e[33m[*] Installation des dépendances Python et Système...\e[0m"
@@ -44,7 +44,7 @@ echo -e "\e[33m[*] Téléchargement des fichiers source...\e[0m"
 echo -e "\e[33m[*] Lancement du service en arrière-plan...\e[0m"
 cat <<EOF > /etc/systemd/system/dotybot.service
 [Unit]
-Description=Dotycat Telegram Bot
+Description=Nexus Tunnel Pro Telegram Bot
 After=network.target
 
 [Service]
