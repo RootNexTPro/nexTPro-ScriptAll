@@ -22,10 +22,27 @@ const PROTOCOLS = ['ssh', 'vmess', 'vless', 'trojan', 'zipvpn', 'slowdns', 'udpc
 // GET /api/clients
 router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDb();
-  const clients = db.prepare(
-    `SELECT id, username, protocol, plan_id, expires_at, status, created_by, created_at, updated_at
-     FROM clients ORDER BY created_at DESC`
-  ).all();
+  const admin = req.admin!;
+
+  // Resellers can only see their own clients; admins can see all (or filter)
+  const mine = req.query.mine === 'true' || admin.role === 'reseller';
+  const createdBy = req.query.created_by as string | undefined;
+
+  let query = `SELECT id, username, protocol, plan_id, expires_at, status, created_by, created_at, updated_at
+               FROM clients`;
+  const params: string[] = [];
+
+  if (mine) {
+    query += ' WHERE created_by = ?';
+    params.push(admin.id);
+  } else if (createdBy) {
+    query += ' WHERE created_by = ?';
+    params.push(createdBy);
+  }
+
+  query += ' ORDER BY created_at DESC';
+
+  const clients = db.prepare(query).all(...params);
   res.json(clients);
 });
 

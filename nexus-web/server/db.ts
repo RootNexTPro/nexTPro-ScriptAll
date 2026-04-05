@@ -30,6 +30,10 @@ function initSchema(): void {
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'admin',
       status TEXT NOT NULL DEFAULT 'active',
+      bouquet TEXT DEFAULT '[]',
+      expiry_date TEXT,
+      credits INTEGER DEFAULT 0,
+      max_credits INTEGER DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -83,6 +87,22 @@ function initSchema(): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+
+  // Migration: add new columns to admins table if they don't exist
+  interface ColInfo { name: string }
+  const cols = (database.prepare('PRAGMA table_info(admins)').all() as ColInfo[]).map(c => c.name);
+  if (!cols.includes('bouquet')) {
+    database.exec("ALTER TABLE admins ADD COLUMN bouquet TEXT DEFAULT '[]'");
+  }
+  if (!cols.includes('expiry_date')) {
+    database.exec('ALTER TABLE admins ADD COLUMN expiry_date TEXT');
+  }
+  if (!cols.includes('credits')) {
+    database.exec('ALTER TABLE admins ADD COLUMN credits INTEGER DEFAULT 0');
+  }
+  if (!cols.includes('max_credits')) {
+    database.exec('ALTER TABLE admins ADD COLUMN max_credits INTEGER DEFAULT 0');
+  }
 }
 
 export function seedSuperAdmin(username: string, password: string): void {

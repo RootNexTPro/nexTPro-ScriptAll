@@ -1,0 +1,146 @@
+import { Router, Response } from 'express';
+import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
+import { getDb, logAction } from '../db';
+import { requireAuth, requireSuperAdmin, AuthRequest } from '../middleware/auth';
+
+const router = Router();
+
+// GET /api/resellers — list all resellers (admin or super_admin)
+router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
+  const admin = req.admin!;
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const db = getDb();
+  const resellers = db.prepare(
+    `SELECT id, username, role, status, created_at, updated_at,
+            bouquet, expiry_date, credits, max_credits
+     FROM admins WHERE role = 'reseller'
+     ORDER BY created_at DESC`
+  ).all();
+
+  res.json(resellers);
+});
+
+// POST /api/resellers — create a reseller (admin or super_admin)
+router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
+  const admin = req.admin!;
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const { username, password, duration_days, bouquet } = req.body as {
+    username?: string;
+    password?: string;
+    duration_days?: number;
+    bouquet?: Array<{ protocolId: string; maxAccounts: number }>;
+  };
+
+  if (!username || !password) {
+    res.status(400).json({ error: 'username and password required' });
+    return;
+  }
+
+  if (password.length < 6) {
+    res.status(400).json({ error: 'Password must be at least 6 characters' });
+    return;
+  }
+
+  const days = duration_days && duration_days > 0 ? duration_days : 30;
+  const expiryDate = new Date(Date.now() + days * 86400 * 1000).toISOString().split('T')[0];
+
+  const db = getDb();
+  const exists = db.prepare('SELECT id FROM admins WHERE username = ?').get(username);
+  if (exists) {
+    res.status(409).json({ error: 'Username already exists' });
+    return;
+  }
+
+  const id = uuidv4();
+  const hash = bcrypt.hashSync(password, 12);
+  const bouquetJson = JSON.stringify(bouquet || []);
+
+  db.prepare(
+    `INSERT INTO admins (id, username, password_hash, role, status, bouquet, expiry_date, credits, max_credits)
+     VALUES (?, ?, ?, 'reseller', 'active', ?, ?, ?, ?)`
+  ).run(id, username, hash, bouquetJson, expiryDate, days, days);
+
+  logAction(
+    admin.id, admin.username, 'CREATE_RESELLER', 'reseller', id,
+    { username, duration_days: days }, req.ip || null
+  );
+
+  res.status(201).json({
+    id, username, role: 'reseller', status: 'active',
+    expiry_date: expiryDate, credits: days, max_credits: days,
+    bouquet: bouquetJson,
+  });
+});
+
+// POST /api/resellers/:id/suspend
+router.post('/:id/suspend', requireAuth, (req: AuthRequest, res: Response): void => {
+  const admin = req.admin!;
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const db = getDb();
+  const target = db.prepare("SELECT id FROM admins WHERE id = ? AND role = 'reseller'").get(req.params.id);
+  if (!target) {
+    res.status(404).json({ error: 'Reseller not found' });
+    return;
+  }
+
+  db.prepare("UPDATE admins SET status = 'suspended', updated_at = datetime('now') WHERE id = ?").run(req.params.id);
+  logAction(admin.id, admin.username, 'SUSPEND_RESELLER', 'reseller', req.params.id, {}, req.ip || null);
+  res.json({ message: 'Reseller suspended' });
+});
+
+// POST /api/resellers/:id/activate
+router.post('/:id/activate', requireAuth, (req: AuthRequest, res: Response): void => {
+  const admin = req.admin!;
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const db = getDb();
+  const target = db.prepare("SELECT id FROM admins WHERE id = ? AND role = 'reseller'").get(req.params.id);
+  if (!target) {
+    res.status(404).json({ error: 'Reseller not found' });
+    return;
+  }
+
+  db.prepare("UPDATE admins SET status = 'active', updated_at = datetime('now') WHERE id = ?").run(req.params.id);
+  logAction(admin.id, admin.username, 'ACTIVATE_RESELLER', 'reseller', req.params.id, {}, req.ip || null);
+  res.json({ message: 'Reseller activated' });
+});
+
+// DELETE /api/resellers/:id
+router.delete('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
+  const admin = req.admin!;
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const db = getDb();
+  const target = db.prepare("SELECT id FROM admins WHERE id = ? AND role = 'reseller'").get(req.params.id);
+  if (!target) {
+    res.status(404).json({ error: 'Reseller not found' });
+    return;
+  }
+
+  db.prepare('DELETE FROM sessions WHERE admin_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM admins WHERE id = ?').run(req.params.id);
+
+  logAction(admin.id, admin.username, 'DELETE_RESELLER', 'reseller', req.params.id, {}, req.ip || null);
+  res.json({ message: 'Reseller deleted' });
+});
+
+export default router;
