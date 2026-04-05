@@ -31,7 +31,7 @@ http_access deny all
 http_port 8080
 http_port $PORT_SQUID
 coredump_dir /var/spool/squid
-visible_hostname DOTYCAT
+visible_hostname NEXUS-TUNNEL-PRO
 EOF
 sed -i "$MYIP2" "$SQUID_CONF"
 systemctl enable squid
@@ -57,7 +57,7 @@ local FILE=$1
 local PROTO=$2
 local PORT=$3
 cat > /etc/openvpn/${FILE}.ovpn <<-EOF
-setenv FRIENDLY_NAME "OVPN VPN DOTYCAT"
+setenv FRIENDLY_NAME "OVPN VPN NEXUS TUNNEL PRO"
 setenv CLIENT_CERT 0
 client
 dev tun
@@ -84,7 +84,7 @@ setup_ohp() {
 wget -q -O /usr/local/bin/ohp "${SERVER_HOST}/module/ohp"
 chmod +x /usr/local/bin/ohp
 cat > /etc/openvpn/client-ohp.ovpn <<-EOF
-setenv FRIENDLY_NAME "OHP VPN DOTYCAT"
+setenv FRIENDLY_NAME "OHP VPN NEXUS TUNNEL PRO"
 setenv CLIENT_CERT 0
 client
 dev tun

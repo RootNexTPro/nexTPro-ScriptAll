@@ -138,7 +138,7 @@ echo -e "${LN}┏━━━━━━━━━━━━━━━━━━━━━
 echo -e "${LN}┃${NC} Domain has been set successfully!"
 echo -e "${LN}┃${NC} Current Domain: ${domain}"
 echo -e "${LN}┃${NC}                                                            "
-echo -e "${LN}┃${NC} AutoScript Xray by Dotycat.com"
+echo -e "${LN}┃${NC} AutoScript Xray by Nexus Tunnel Pro"
 echo -e "${LN}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${NC}"
 echo -e "${LN}●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━●${NC}"
 sleep 4
@@ -266,7 +266,7 @@ echo -e "${LN}┃${NC}"
 echo -e "${LN}┃${NC} Domain: ${domain}"
 echo -e "${LN}┃${NC} VPS IP: ${MYIP}"
 echo -e "${LN}┃${NC} Enjoy secure VPN services!${NC}"
-echo -e "${LN}┃${NC} AutoScript Xray by Dotycat.com"
+echo -e "${LN}┃${NC} AutoScript Xray by Nexus Tunnel Pro"
 echo -e "${LN}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${NC}"
 echo -e "${LN}●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━●${NC}"
 echo
