@@ -9,6 +9,8 @@ logging.basicConfig(level=logging.WARNING, format='%(asctime)s %(levelname)s %(m
 
 CONFIG_FILE = '/etc/nexus_bot/config.json'
 
+MENU_IMAGE_URL = "https://github.com/user-attachments/assets/baf681b1-820a-428d-85cf-703c25ff498b"
+
 def load_config():
     if not os.path.exists(CONFIG_FILE): return None
     with open(CONFIG_FILE, 'r') as f: return json.load(f)
@@ -57,14 +59,27 @@ def protocol_menu_keyboard(proto):
     markup.add(InlineKeyboardButton("🔙 Retour Accueil", callback_data="action_home"))
     return markup
 
+def _show_submenu(call, text, markup):
+    """Helper: shows a submenu, handling both photo and text message origins."""
+    if call.message.content_type == 'photo':
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
+        bot.send_message(call.message.chat.id, text, parse_mode="HTML", reply_markup=markup)
+    else:
+        bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id,
+                              parse_mode="HTML", reply_markup=markup)
+
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     if not is_admin(message.from_user.id):
         bot.reply_to(message, "⛔ Accès refusé.")
         return
-    bot.send_message(
+    bot.send_photo(
         message.chat.id,
-        "<b>🟢 NEXUS TUNNEL PRO - C2 SERVER</b>\nSélectionnez un module :",
+        MENU_IMAGE_URL,
+        caption="<b>🟢 NEXUS TUNNEL PRO - C2 SERVER</b>\nSélectionnez un module :",
         parse_mode="HTML",
         reply_markup=main_menu_keyboard()
     )
@@ -73,10 +88,16 @@ def send_welcome(message):
 @bot.callback_query_handler(func=lambda call: call.data == "action_home")
 def home_callback(call):
     if not is_admin(call.from_user.id): return
-    bot.edit_message_text(
-        "<b>🟢 NEXUS TUNNEL PRO - C2 SERVER</b>\nSélectionnez un module :",
-        chat_id=call.message.chat.id, message_id=call.message.message_id,
-        parse_mode="HTML", reply_markup=main_menu_keyboard()
+    try:
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+    except Exception:
+        pass
+    bot.send_photo(
+        call.message.chat.id,
+        MENU_IMAGE_URL,
+        caption="<b>🟢 NEXUS TUNNEL PRO - C2 SERVER</b>\nSélectionnez un module :",
+        parse_mode="HTML",
+        reply_markup=main_menu_keyboard()
     )
 
 # --- SOUS-MENUS PROTOCOLES ---
@@ -86,11 +107,7 @@ def home_callback(call):
 def protocol_submenu(call):
     if not is_admin(call.from_user.id): return
     proto = call.data.split("_", 1)[1]
-    bot.edit_message_text(
-        f"<b>Module {proto.upper()}</b>\nChoisissez une action :",
-        chat_id=call.message.chat.id, message_id=call.message.message_id,
-        parse_mode="HTML", reply_markup=protocol_menu_keyboard(proto)
-    )
+    _show_submenu(call, f"<b>Module {proto.upper()}</b>\nChoisissez une action :", protocol_menu_keyboard(proto))
 
 # ═══════════════════════════════════════════════════════════
 # SSH — CRÉATION
@@ -177,9 +194,28 @@ def _ssh_lock_execute(message, action):
 @bot.callback_query_handler(func=lambda call: call.data == "list_ssh")
 def handle_list_ssh(call):
     if not is_admin(call.from_user.id): return
-    result = ssh_core.list_ssh_accounts()
-    markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 Retour Accueil", callback_data="action_home"))
-    bot.edit_message_text(result, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+    users = ssh_core.get_ssh_usernames()
+    markup = InlineKeyboardMarkup(row_width=1)
+    if users:
+        for u in users:
+            markup.add(InlineKeyboardButton(f"👤 {u}", callback_data=f"view_ssh_{u}"))
+        text = "📋 <b>LISTE DES COMPTES SSH:</b>\nSélectionnez un compte pour voir ses détails :"
+    else:
+        text = "📋 Aucun compte SSH trouvé."
+    markup.add(InlineKeyboardButton("🔙 Retour Accueil", callback_data="action_home"))
+    _show_submenu(call, text, markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("view_ssh_"))
+def view_ssh_account(call):
+    if not is_admin(call.from_user.id): return
+    user = call.data[len("view_ssh_"):]
+    ok, details = ssh_core.get_ssh_account_details(user)
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        InlineKeyboardButton("🔙 Retour Liste", callback_data="list_ssh"),
+        InlineKeyboardButton("🏠 Retour Accueil", callback_data="action_home")
+    )
+    _show_submenu(call, details, markup)
 
 # ═══════════════════════════════════════════════════════════
 # XRAY — MACHINE À ÉTATS COMMUNE (VLESS / VMESS / TROJAN / SOCKS)
@@ -247,9 +283,30 @@ def _xray_del_execute(message, proto):
 def handle_list_xray(call):
     if not is_admin(call.from_user.id): return
     proto = call.data.split("_", 1)[1]
-    result = xray_core.list_xray_accounts(proto)
-    markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 Retour Accueil", callback_data="action_home"))
-    bot.edit_message_text(result, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+    users = xray_core.get_xray_usernames(proto)
+    markup = InlineKeyboardMarkup(row_width=1)
+    if users:
+        for u in users:
+            markup.add(InlineKeyboardButton(f"👤 {u}", callback_data=f"view_{proto}_{u}"))
+        text = f"📋 <b>LISTE DES COMPTES {proto.upper()}:</b>\nSélectionnez un compte pour voir ses détails :"
+    else:
+        text = f"📋 Aucun compte {proto.upper()} trouvé."
+    markup.add(InlineKeyboardButton("🔙 Retour Accueil", callback_data="action_home"))
+    _show_submenu(call, text, markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("view_vless_") or call.data.startswith("view_vmess_") or call.data.startswith("view_trojan_") or call.data.startswith("view_socks_"))
+def view_xray_account(call):
+    if not is_admin(call.from_user.id): return
+    parts = call.data.split("_", 2)
+    proto = parts[1]
+    user = parts[2]
+    ok, details = xray_core.get_xray_account_details(proto, user)
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        InlineKeyboardButton(f"🔙 Retour Liste", callback_data=f"list_{proto}"),
+        InlineKeyboardButton("🏠 Retour Accueil", callback_data="action_home")
+    )
+    _show_submenu(call, details, markup)
 
 # ═══════════════════════════════════════════════════════════
 # ZIVPN — CRÉATION
@@ -318,9 +375,28 @@ def _zivpn_del_execute(message):
 @bot.callback_query_handler(func=lambda call: call.data == "list_zivpn")
 def handle_list_zivpn(call):
     if not is_admin(call.from_user.id): return
-    result = zivpn_core.list_zivpn_accounts()
-    markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 Retour Accueil", callback_data="action_home"))
-    bot.edit_message_text(result, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+    users = zivpn_core.get_zivpn_usernames()
+    markup = InlineKeyboardMarkup(row_width=1)
+    if users:
+        for u in users:
+            markup.add(InlineKeyboardButton(f"👤 {u}", callback_data=f"view_zivpn_{u}"))
+        text = "📋 <b>LISTE DES COMPTES ZIVPN:</b>\nSélectionnez un compte pour voir ses détails :"
+    else:
+        text = "📋 Aucun compte ZIVPN trouvé."
+    markup.add(InlineKeyboardButton("🔙 Retour Accueil", callback_data="action_home"))
+    _show_submenu(call, text, markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("view_zivpn_"))
+def view_zivpn_account(call):
+    if not is_admin(call.from_user.id): return
+    user = call.data[len("view_zivpn_"):]
+    ok, details = zivpn_core.get_zivpn_account_details(user)
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        InlineKeyboardButton("🔙 Retour Liste", callback_data="list_zivpn"),
+        InlineKeyboardButton("🏠 Retour Accueil", callback_data="action_home")
+    )
+    _show_submenu(call, details, markup)
 
 # ═══════════════════════════════════════════════════════════
 # SYSTÈME
@@ -330,14 +406,14 @@ def handle_status(call):
     if not is_admin(call.from_user.id): return
     status_text = system_core.get_vps_status()
     markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 Retour Accueil", callback_data="action_home"))
-    bot.edit_message_text(status_text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+    _show_submenu(call, status_text, markup)
 
 @bot.callback_query_handler(func=lambda call: call.data == "menu_log")
 def handle_clean_logs(call):
     if not is_admin(call.from_user.id): return
     result = system_core.clean_system_logs()
     markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 Retour Accueil", callback_data="action_home"))
-    bot.edit_message_text(result, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+    _show_submenu(call, result, markup)
 
 @bot.callback_query_handler(func=lambda call: call.data == "action_reboot")
 def handle_reboot(call):
@@ -366,13 +442,13 @@ def handle_menu_admins(call):
         InlineKeyboardButton("🔙 Retour Accueil", callback_data="action_home")
     )
     msg = admin_core.list_admins()
-    bot.edit_message_text(msg, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+    _show_submenu(call, msg, markup)
 
 @bot.callback_query_handler(func=lambda call: call.data == "list_admins")
 def handle_list_admins(call):
     if not is_admin(call.from_user.id): return
     markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 Retour Admins", callback_data="menu_admins"))
-    bot.edit_message_text(admin_core.list_admins(), chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML", reply_markup=markup)
+    _show_submenu(call, admin_core.list_admins(), markup)
 
 @bot.callback_query_handler(func=lambda call: call.data == "req_add_admin")
 def req_add_admin(call):

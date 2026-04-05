@@ -28,7 +28,7 @@ http_access allow manager localhost
 http_access deny manager
 http_access allow localhost
 http_access deny all
-http_port 8080
+http_port 8880
 http_port $PORT_SQUID
 coredump_dir /var/spool/squid
 visible_hostname NEXUS-TUNNEL-PRO
