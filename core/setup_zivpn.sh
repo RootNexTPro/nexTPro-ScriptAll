@@ -3,7 +3,7 @@ RED='[31m'
 GREEN='[32m'
 BLUE='[34m'
 NC='[0m'
-export SERVER_HOST="https://raw.githubusercontent.com/naomierachel031-lab/Script-hysteria-and-any-other/main"
+export SERVER_HOST="https://raw.githubusercontent.com/naomierachel031-lab/Clone-script-all-buddy/main"
 update_system() {
 echo -e "${BLUE}Updating server...${NC}"
 sudo apt-get update && sudo apt-get upgrade -y

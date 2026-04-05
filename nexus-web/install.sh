@@ -115,12 +115,25 @@ main() {
   cp -r "$SCRIPT_DIR"/* "$NEXUS_WEB_DIR/"
   cd "$NEXUS_WEB_DIR"
 
-  # ── Install Node.js dependencies ──
-  log_info "Installing Node.js dependencies..."
+  # ── Build React frontend ──
+  if [ -d "$NEXUS_WEB_DIR/frontend" ]; then
+    log_info "Building React frontend..."
+    cd "$NEXUS_WEB_DIR/frontend"
+    npm install --quiet 2>&1 | tail -5
+    if ! npm run build 2>&1; then
+      log_warn "Frontend build had warnings, continuing..."
+    else
+      log_ok "React frontend built successfully."
+    fi
+    cd "$NEXUS_WEB_DIR"
+  fi
+
+  # ── Install Node.js dependencies (server) ──
+  log_info "Installing server Node.js dependencies..."
   npm install --production=false --quiet 2>&1 | tail -5
 
-  # ── Build TypeScript ──
-  log_info "Compiling TypeScript..."
+  # ── Build TypeScript server ──
+  log_info "Compiling TypeScript server..."
   if ! npm run build 2>&1; then
     log_warn "TypeScript build had warnings, checking dist..."
     if [ ! -f "$NEXUS_WEB_DIR/dist/server/index.js" ]; then

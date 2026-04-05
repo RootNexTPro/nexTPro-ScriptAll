@@ -64,8 +64,19 @@ This script is provided free of charge and may be used without a license or doma
 ## Installation
  
 <pre>
-<code>wget -O /root/doty.sh https://raw.githubusercontent.com/dotywrt/doty/main/doty.sh && chmod +x /root/doty.sh && /root/doty.sh</code>
+<code>wget -O /root/nexus.sh https://raw.githubusercontent.com/naomierachel031-lab/Clone-script-all-buddy/main/nexus.sh && chmod +x /root/nexus.sh && bash /root/nexus.sh</code>
 </pre>
+
+## Nexus Tunnel Web Panel
+
+The web panel provides a professional administration interface with:
+- **Super Admin** → creates Admins and Resellers, full control
+- **Admin** → manages resellers and their protocol quotas
+- **Reseller** → creates VPN accounts based on assigned bouquet (protocol quotas)
+- Server-side timestamps (no device-time manipulation)
+- JWT authentication with 24h sessions
+
+To install the web panel, run the menu (`menu`) and select `[18] NEXUS TUNNEL WEB`.
 
 ### Known Bugs (will fix later, too lazy now 😅)
 - Active user count for Xray (VLESS, VMess, Trojan, SOCKS) not displayed correctly

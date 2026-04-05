@@ -50,7 +50,10 @@ router.get('/stats', requireAuth, (_req: AuthRequest, res: Response): void => {
   const totalClients = (db.prepare("SELECT COUNT(*) as cnt FROM clients").get() as { cnt: number }).cnt;
   const activeClients = (db.prepare("SELECT COUNT(*) as cnt FROM clients WHERE status = 'active'").get() as { cnt: number }).cnt;
   const expiredClients = (db.prepare("SELECT COUNT(*) as cnt FROM clients WHERE expires_at < date('now')").get() as { cnt: number }).cnt;
-  const totalAdmins = (db.prepare("SELECT COUNT(*) as cnt FROM admins").get() as { cnt: number }).cnt;
+  const totalAdmins = (db.prepare("SELECT COUNT(*) as cnt FROM admins WHERE role IN ('admin', 'super_admin')").get() as { cnt: number }).cnt;
+  const totalResellers = (db.prepare("SELECT COUNT(*) as cnt FROM admins WHERE role = 'reseller'").get() as { cnt: number }).cnt;
+  const activeResellers = (db.prepare("SELECT COUNT(*) as cnt FROM admins WHERE role = 'reseller' AND status = 'active'").get() as { cnt: number }).cnt;
+  const suspendedResellers = (db.prepare("SELECT COUNT(*) as cnt FROM admins WHERE role = 'reseller' AND status = 'suspended'").get() as { cnt: number }).cnt;
   const totalPlans = (db.prepare("SELECT COUNT(*) as cnt FROM plans").get() as { cnt: number }).cnt;
   const recentActions = (db.prepare(
     "SELECT action, COUNT(*) as cnt FROM audit_logs WHERE created_at > datetime('now', '-7 days') GROUP BY action ORDER BY cnt DESC LIMIT 10"
@@ -63,9 +66,10 @@ router.get('/stats', requireAuth, (_req: AuthRequest, res: Response): void => {
   res.json({
     clients: { total: totalClients, active: activeClients, expired: expiredClients },
     admins: { total: totalAdmins },
+    resellers: { total: totalResellers, active: activeResellers, suspended: suspendedResellers },
     plans: { total: totalPlans },
     recent_actions: recentActions,
-    protocol_stats: protocolStats
+    protocol_stats: protocolStats,
   });
 });
 

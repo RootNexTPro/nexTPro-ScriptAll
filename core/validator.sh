@@ -1,4 +1,4 @@
-export SERVER_HOST="https://raw.githubusercontent.com/naomierachel031-lab/Script-hysteria-and-any-other/main"
+export SERVER_HOST="https://raw.githubusercontent.com/naomierachel031-lab/Clone-script-all-buddy/main"
 CONF_DIR="/etc/nginx"
 configure_nginx() {
 echo "Downloading nginx xray conf..."

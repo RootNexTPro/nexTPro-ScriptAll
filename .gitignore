@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 nexus-web/node_modules/
 nexus-web/dist/
+nexus-web/frontend/node_modules/
+nexus-web/frontend/dist/

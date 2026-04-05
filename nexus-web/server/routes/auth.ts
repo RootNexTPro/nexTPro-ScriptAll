@@ -64,7 +64,31 @@ router.post('/logout', requireAuth, (req: AuthRequest, res: Response): void => {
 
 // GET /api/auth/me
 router.get('/me', requireAuth, (req: AuthRequest, res: Response): void => {
-  res.json({ admin: req.admin });
+  const db = getDb();
+  const admin = db.prepare(
+    'SELECT id, username, role, status, bouquet, expiry_date, credits, max_credits FROM admins WHERE id = ?'
+  ).get(req.admin!.id) as {
+    id: string; username: string; role: string; status: string;
+    bouquet?: string; expiry_date?: string; credits?: number; max_credits?: number;
+  } | undefined;
+
+  if (!admin) {
+    res.status(404).json({ error: 'Admin not found' });
+    return;
+  }
+
+  res.json({
+    admin: {
+      id: admin.id,
+      username: admin.username,
+      role: admin.role,
+      status: admin.status,
+      bouquet: admin.bouquet,
+      expiry_date: admin.expiry_date,
+      credits: admin.credits,
+      max_credits: admin.max_credits,
+    },
+  });
 });
 
 // POST /api/auth/change-password

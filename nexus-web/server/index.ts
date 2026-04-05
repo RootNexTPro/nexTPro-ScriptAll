@@ -9,6 +9,8 @@ import adminsRouter from './routes/admins';
 import clientsRouter from './routes/clients';
 import plansRouter from './routes/plans';
 import logsRouter from './routes/logs';
+import resellersRouter from './routes/resellers';
+import settingsRouter from './routes/settings';
 
 // ─── Load configuration ────────────────────────────────────────────────────────
 const CONFIG_FILE = process.env.NEXUS_CONFIG || '/etc/nexus-tunnel-web/config.json';
@@ -97,6 +99,8 @@ app.use('/api/admins', apiLimiter, adminsRouter);
 app.use('/api/clients', apiLimiter, clientsRouter);
 app.use('/api/plans', apiLimiter, plansRouter);
 app.use('/api/logs', apiLimiter, logsRouter);
+app.use('/api/resellers', apiLimiter, resellersRouter);
+app.use('/api/settings', apiLimiter, settingsRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {
