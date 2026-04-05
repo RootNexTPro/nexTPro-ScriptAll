@@ -16,7 +16,7 @@ sysctl -w net.ipv6.conf.default.disable_ipv6=1 >/dev/null 2>&1
 
 # 3. Téléchargement du Lanceur Principal depuis TON laboratoire
 echo "[+] Connexion au dépôt autonome Nexus..."
-wget -qO /root/nexus.sh "https://raw.githubusercontent.com/naomierachel031-lab/Script-hysteria-and-any-other/main/nexus.sh"
+wget -qO /root/nexus.sh "https://raw.githubusercontent.com/naomierachel031-lab/Clone-script-all-buddy/main/nexus.sh"
 
 # 4. Exécution Sécurisée
 if [ -f /root/nexus.sh ]; then
