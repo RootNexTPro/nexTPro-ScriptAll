@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nexus Tunnel Web</title>
+  <style>
+    :root {
+      --bg: #0a0e1a;
+      --surface: #111827;
+      --surface2: #1a2234;
+      --border: #2a3654;
+      --accent: #00bcd4;
+      --accent2: #7c3aed;
+      --text: #e2e8f0;
+      --text2: #94a3b8;
+      --danger: #ef4444;
+      --warn: #f59e0b;
+      --success: #10b981;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+    a { color: var(--accent); text-decoration: none; }
+
+    /* ── Login ── */
+    #login-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 2.5rem; width: 100%; max-width: 400px; }
+    .login-card h1 { text-align: center; font-size: 1.5rem; margin-bottom: 0.25rem; }
+    .login-card .subtitle { text-align: center; color: var(--text2); font-size: 0.85rem; margin-bottom: 2rem; }
+    .login-card .logo { text-align: center; font-size: 2.5rem; margin-bottom: 0.5rem; }
+
+    /* ── Layout ── */
+    #app { display: none; }
+    .layout { display: flex; min-height: 100vh; }
+    .sidebar { width: 240px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+    .sidebar-header { padding: 1.25rem 1rem; border-bottom: 1px solid var(--border); }
+    .sidebar-header h2 { font-size: 0.95rem; color: var(--accent); }
+    .sidebar-header p { font-size: 0.75rem; color: var(--text2); margin-top: 0.15rem; }
+    .sidebar-nav { flex: 1; padding: 0.75rem 0; overflow-y: auto; }
+    .nav-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.65rem 1rem; cursor: pointer; color: var(--text2); font-size: 0.875rem; border-left: 3px solid transparent; transition: all 0.15s; }
+    .nav-item:hover { background: var(--surface2); color: var(--text); }
+    .nav-item.active { background: var(--surface2); color: var(--accent); border-left-color: var(--accent); }
+    .nav-section { padding: 0.75rem 1rem 0.25rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2); }
+    .sidebar-footer { padding: 1rem; border-top: 1px solid var(--border); }
+    .main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: space-between; }
+    .topbar h3 { font-size: 1rem; }
+    .content { padding: 1.5rem; flex: 1; }
+
+    /* ── Cards / UI ── */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1.25rem; }
+    .card h3 { font-size: 1rem; margin-bottom: 1rem; color: var(--accent); }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+    .stat-card .label { font-size: 0.75rem; color: var(--text2); margin-bottom: 0.4rem; }
+    .stat-card .value { font-size: 2rem; font-weight: bold; }
+    .btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: opacity 0.15s; }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-warn { background: var(--warn); color: #000; }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-sm { padding: 0.3rem 0.65rem; font-size: 0.78rem; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-size: 0.82rem; color: var(--text2); margin-bottom: 0.35rem; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    input, select, textarea {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; padding: 0.55rem 0.75rem; font-size: 0.875rem;
+      outline: none; transition: border-color 0.15s;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { text-align: left; padding: 0.65rem 0.75rem; color: var(--text2); font-weight: 500; border-bottom: 1px solid var(--border); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 99px; font-size: 0.72rem; font-weight: 600; }
+    .badge-active { background: rgba(16,185,129,0.15); color: var(--success); }
+    .badge-suspended { background: rgba(239,68,68,0.15); color: var(--danger); }
+    .badge-super_admin { background: rgba(124,58,237,0.15); color: #a78bfa; }
+    .badge-admin { background: rgba(0,188,212,0.15); color: var(--accent); }
+    .badge-expired { background: rgba(245,158,11,0.15); color: var(--warn); }
+    .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; padding: 0.75rem 1.25rem; border-radius: 8px; color: #fff; font-size: 0.875rem; z-index: 9999; animation: fadein 0.2s; max-width: 360px; }
+    .toast-success { background: var(--success); }
+    .toast-error { background: var(--danger); }
+    @keyframes fadein { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }
+    .modal-backdrop.open { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; width: 100%; max-width: 480px; }
+    .modal h3 { margin-bottom: 1.25rem; }
+    .modal-footer { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.25rem; }
+    .account-box { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; font-family: monospace; font-size: 0.78rem; white-space: pre-wrap; word-break: break-all; color: var(--text); max-height: 380px; overflow-y: auto; }
+    .flex { display: flex; }
+    .items-center { align-items: center; }
+    .justify-between { justify-content: space-between; }
+    .gap-2 { gap: 0.5rem; }
+    .mb-4 { margin-bottom: 1rem; }
+    .text-danger { color: var(--danger); }
+    .loading { text-align: center; padding: 2rem; color: var(--text2); }
+    @media (max-width: 768px) {
+      .sidebar { width: 60px; }
+      .sidebar-header h2, .sidebar-header p, .nav-item span, .nav-section, .sidebar-footer { display: none; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN PAGE -->
+<div id="login-page">
+  <div class="login-card">
+    <div class="logo">🌐</div>
+    <h1>Nexus Tunnel Web</h1>
+    <p class="subtitle">Admin Panel — Clone-script-all-buddy</p>
+    <form id="login-form" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label>Username</label>
+        <input id="login-user" type="text" autocomplete="username" required placeholder="admin" />
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input id="login-pass" type="password" autocomplete="current-password" required placeholder="••••••" />
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:0.5rem;" id="login-btn">
+        Login
+      </button>
+      <p id="login-error" style="color:var(--danger);font-size:0.82rem;margin-top:0.5rem;text-align:center;display:none;"></p>
+    </form>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>🌐 Nexus Tunnel</h2>
+        <p id="sidebar-user">Loading...</p>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">Main</div>
+        <div class="nav-item active" onclick="navigate('dashboard')"><span>📊</span><span>Dashboard</span></div>
+        <div class="nav-section">Management</div>
+        <div class="nav-item" onclick="navigate('clients')"><span>👥</span><span>Clients</span></div>
+        <div class="nav-item" onclick="navigate('admins')" id="nav-admins"><span>🔐</span><span>Admins</span></div>
+        <div class="nav-item" onclick="navigate('plans')"><span>📦</span><span>Plans</span></div>
+        <div class="nav-section">System</div>
+        <div class="nav-item" onclick="navigate('logs')"><span>📋</span><span>Audit Logs</span></div>
+        <div class="nav-item" onclick="navigate('settings')"><span>⚙️</span><span>Settings</span></div>
+      </nav>
+      <div class="sidebar-footer">
+        <button class="btn btn-secondary btn-sm" onclick="logout()" style="width:100%;justify-content:center;">Logout</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <div class="topbar">
+        <h3 id="page-title">Dashboard</h3>
+        <div id="topbar-actions"></div>
+      </div>
+      <div class="content" id="page-content">
+        <div class="loading">Loading...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-backdrop" id="modal">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<!-- Toast -->
+<div id="toast-container"></div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+let token = localStorage.getItem('ntw_token') || '';
+let currentAdmin = null;
+let currentPage = 'dashboard';
+
+// ─── API ─────────────────────────────────────────────────────────────────────
+async function api(method, path, body) {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json' }
+  };
+  if (token) opts.headers['Authorization'] = `Bearer ${token}`;
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch('/api' + path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+// ─── Toast ───────────────────────────────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ─── Modal ───────────────────────────────────────────────────────────────────
+function openModal(html) {
+  document.getElementById('modal-content').innerHTML = html;
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal')) closeModal();
+});
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+async function handleLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('login-btn');
+  const errEl = document.getElementById('login-error');
+  btn.disabled = true; btn.textContent = 'Logging in...';
+  errEl.style.display = 'none';
+  try {
+    const data = await api('POST', '/auth/login', {
+      username: document.getElementById('login-user').value,
+      password: document.getElementById('login-pass').value
+    });
+    token = data.token;
+    currentAdmin = data.admin;
+    localStorage.setItem('ntw_token', token);
+    showApp();
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Login';
+  }
+}
+
+async function logout() {
+  try { await api('POST', '/auth/logout'); } catch {}
+  token = ''; currentAdmin = null;
+  localStorage.removeItem('ntw_token');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-page').style.display = 'flex';
+}
+
+async function showApp() {
+  if (!currentAdmin) {
+    try { currentAdmin = (await api('GET', '/auth/me')).admin; } catch {
+      logout(); return;
+    }
+  }
+  document.getElementById('login-page').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('sidebar-user').textContent = `${currentAdmin.username} (${currentAdmin.role})`;
+  if (currentAdmin.role !== 'super_admin') {
+    document.getElementById('nav-admins').style.display = 'none';
+  }
+  navigate('dashboard');
+}
+
+// ─── Navigation ──────────────────────────────────────────────────────────────
+function navigate(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.querySelector(`.nav-item[onclick*="'${page}'"]`)?.classList.add('active');
+  const titles = { dashboard: 'Dashboard', clients: 'Client Manager', admins: 'Admin Manager', plans: 'Plans / Products', logs: 'Audit Logs', settings: 'Settings' };
+  document.getElementById('page-title').textContent = titles[page] || page;
+  document.getElementById('topbar-actions').innerHTML = '';
+  const pages = { dashboard, clients, admins, plans, logs, settings };
+  pages[page]?.();
+}
+
+// ─── Dashboard ───────────────────────────────────────────────────────────────
+async function dashboard() {
+  const el = document.getElementById('page-content');
+  el.innerHTML = '<div class="loading">Loading stats...</div>';
+  try {
+    const stats = await api('GET', '/logs/stats');
+    el.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-card"><div class="label">Total Clients</div><div class="value">${stats.clients.total}</div></div>
+        <div class="stat-card"><div class="label">Active Clients</div><div class="value" style="color:var(--success)">${stats.clients.active}</div></div>
+        <div class="stat-card"><div class="label">Expired Clients</div><div class="value" style="color:var(--warn)">${stats.clients.expired}</div></div>
+        <div class="stat-card"><div class="label">Total Admins</div><div class="value">${stats.admins.total}</div></div>
+        <div class="stat-card"><div class="label">Plans</div><div class="value">${stats.plans.total}</div></div>
+      </div>
+      <div class="form-row">
+        <div class="card">
+          <h3>Protocol Distribution</h3>
+          ${stats.protocol_stats.length ? `<table><thead><tr><th>Protocol</th><th>Clients</th></tr></thead><tbody>
+            ${stats.protocol_stats.map(p => `<tr><td>${p.protocol}</td><td>${p.cnt}</td></tr>`).join('')}
+          </tbody></table>` : '<p style="color:var(--text2);font-size:0.85rem;">No clients yet</p>'}
+        </div>
+        <div class="card">
+          <h3>Recent Actions (7 days)</h3>
+          ${stats.recent_actions.length ? `<table><thead><tr><th>Action</th><th>Count</th></tr></thead><tbody>
+            ${stats.recent_actions.map(a => `<tr><td>${a.action}</td><td>${a.cnt}</td></tr>`).join('')}
+          </tbody></table>` : '<p style="color:var(--text2);font-size:0.85rem;">No recent actions</p>'}
+        </div>
+      </div>`;
+  } catch (e) {
+    el.innerHTML = `<p class="text-danger">Failed to load stats: ${e.message}</p>`;
+  }
+}
+
+// ─── Clients ─────────────────────────────────────────────────────────────────
+async function clients() {
+  document.getElementById('topbar-actions').innerHTML =
+    `<button class="btn btn-primary btn-sm" onclick="openCreateClient()">+ New Client</button>`;
+  const el = document.getElementById('page-content');
+  el.innerHTML = '<div class="loading">Loading clients...</div>';
+  try {
+    const list = await api('GET', '/clients');
+    if (!list.length) { el.innerHTML = '<div class="card"><p style="color:var(--text2)">No clients yet. Click "+ New Client" to add one.</p></div>'; return; }
+    el.innerHTML = `<div class="card"><table>
+      <thead><tr><th>Username</th><th>Protocol</th><th>Status</th><th>Expires</th><th>Created</th><th>Actions</th></tr></thead>
+      <tbody>${list.map(c => `
+        <tr>
+          <td><strong>${c.username}</strong></td>
+          <td><span style="text-transform:uppercase;font-size:0.75rem;">${c.protocol}</span></td>
+          <td><span class="badge badge-${isExpired(c.expires_at) ? 'expired' : c.status}">${isExpired(c.expires_at) ? 'expired' : c.status}</span></td>
+          <td>${c.expires_at}</td>
+          <td>${c.created_at.split('T')[0]}</td>
+          <td>
+            <button class="btn btn-secondary btn-sm" onclick="viewClientDetails('${c.id}')">View</button>
+            <button class="btn btn-success btn-sm" onclick="renewClient('${c.id}','${c.username}')">Renew</button>
+            <button class="btn btn-warn btn-sm" onclick="suspendClient('${c.id}','${c.username}')">Suspend</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteClient('${c.id}','${c.username}')">Delete</button>
+          </td>
+        </tr>`).join('')}</tbody></table></div>`;
+  } catch (e) {
+    el.innerHTML = `<p class="text-danger">Error: ${e.message}</p>`;
+  }
+}
+
+function isExpired(dateStr) {
+  return new Date(dateStr) < new Date();
+}
+
+function openCreateClient() {
+  openModal(`
+    <h3>➕ Create New Client</h3>
+    <form onsubmit="submitCreateClient(event)">
+      <div class="form-row">
+        <div class="form-group"><label>Username</label><input id="c-user" required placeholder="johndoe" /></div>
+        <div class="form-group"><label>Password</label><input id="c-pass" required placeholder="••••••" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Protocol</label>
+          <select id="c-proto">
+            <option value="ssh">SSH / WS</option>
+            <option value="slowdns">SlowDNS</option>
+            <option value="udpcustom">UDP Custom</option>
+            <option value="vmess">VMess (Xray)</option>
+            <option value="vless">VLESS (Xray)</option>
+            <option value="trojan">Trojan (Xray)</option>
+            <option value="zipvpn">ZipVPN</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Duration (days)</label><input id="c-days" type="number" min="1" max="3650" value="30" required /></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="create-client-btn">Create</button>
+      </div>
+    </form>`);
+}
+
+async function submitCreateClient(e) {
+  e.preventDefault();
+  const btn = document.getElementById('create-client-btn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const data = await api('POST', '/clients', {
+      username: document.getElementById('c-user').value,
+      password: document.getElementById('c-pass').value,
+      protocol: document.getElementById('c-proto').value,
+      days: parseInt(document.getElementById('c-days').value)
+    });
+    closeModal();
+    toast(`Client '${data.username}' created!`);
+    // Show account details
+    showAccountDetails(data.username, data.protocol, data.account_data);
+    clients();
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create';
+  }
+}
+
+function showAccountDetails(username, protocol, data) {
+  const lines = formatAccountDetails(username, protocol, data);
+  openModal(`
+    <h3>✅ Account Created — ${username}</h3>
+    <div class="account-box">${lines}</div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="copyText(\`${lines}\`)">Copy</button>
+      <button class="btn btn-primary" onclick="closeModal()">Close</button>
+    </div>`);
+}
+
+function formatAccountDetails(username, protocol, d) {
+  if (!d) return 'No data available';
+  const sep = '━'.repeat(50);
+  let out = '';
+  if (protocol === 'ssh' || protocol === 'slowdns' || protocol === 'udpcustom') {
+    out = [
+      `╔${sep}╗`,
+      `║${'   ' + protocol.toUpperCase() + ' ACCOUNT DETAILS   '}`,
+      `╚${sep}╝`,
+      `  Username    : ${d.username || username}`,
+      `  Password    : ${d.password || '-'}`,
+      `  Expiry Date : ${d.expiry || d.expires_at || '-'}`,
+      `  Host / IP   : ${d.host || '-'}`,
+      `  Domain      : ${d.domain || '-'}`,
+      `  NS Domain   : ${d.ns_domain || '-'}`,
+      `  `,
+      `  ● Connection Ports`,
+      `  OpenSSH      : 22`,
+      `  Dropbear     : 109, 143`,
+      `  Stunnel      : 447, 777`,
+      `  WS NTLS      : 80, 8880`,
+      `  WS TLS       : 443`,
+      `  UDPGW        : 7100–7900`,
+      `  Squid        : 3128, 8880`,
+      `  OpenVPN      : TCP 1194, SSL 2200, OHP 8000`,
+      `  Slow DNS     : 22,53,5300,80,443`,
+    ];
+    if (protocol === 'udpcustom' || protocol === 'ssh') {
+      out.push(`  `, `  ● UDP Custom`, `  ${d.udp_custom_link || d.udp_link || `${d.domain}:1-65535@${username}:${d.password}`}`);
+    }
+    if (protocol === 'slowdns') {
+      out.push(`  `, `  ● SlowDNS`, `  PUB KEY : ${d.pub_key || '-'}`, `  Ports   : ${d.ports || '22,53,5300,80,443'}`);
+    }
+    out.push(`  `, `  ● Payload`, `  GET / HTTP/1.1[crlf]Host: ${d.domain}[crlf]Upgrade: websocket[crlf][crlf]`);
+    out.push(`  `, `  ● OpenVPN Download`, `  https://${d.domain}:2081`);
+  } else if (['vmess','vless','trojan'].includes(protocol)) {
+    out = [
+      `╔${sep}╗`,
+      `║   XRAY ${protocol.toUpperCase()} ACCOUNT DETAILS`,
+      `╚${sep}╝`,
+      `  Username  : ${d.username || username}`,
+      d.uuid ? `  UUID      : ${d.uuid}` : `  Password : ${d.password || '-'}`,
+      `  Domain    : ${d.domain || '-'}`,
+      `  Host/IP   : ${d.host || '-'}`,
+      `  Protocol  : ${d.protocol || protocol}`,
+      `  Port      : ${d.port || 443}`,
+      d.network ? `  Network   : ${d.network}` : '',
+      d.path ? `  Path      : ${d.path}` : '',
+      d.tls ? `  TLS       : ${d.tls}` : '',
+      `  Expiry    : ${d.expiry || '-'}`,
+    ].filter(Boolean);
+  } else if (protocol === 'zipvpn') {
+    out = [
+      `╔${sep}╗`,
+      `║   ZIPVPN ACCOUNT DETAILS`,
+      `╚${sep}╝`,
+      `  Username : ${d.username || username}`,
+      `  Password : ${d.password || '-'}`,
+      `  Domain   : ${d.domain || '-'}`,
+      `  Expiry   : ${d.expiry || '-'}`,
+    ];
+  } else {
+    out = Object.entries(d).map(([k,v]) => `  ${k}: ${v}`);
+  }
+  return Array.isArray(out) ? out.join('\n') : out;
+}
+
+function copyText(text) {
+  navigator.clipboard?.writeText(text).then(() => toast('Copied!')).catch(() => toast('Copy failed', 'error'));
+}
+
+async function viewClientDetails(id) {
+  try {
+    const c = await api('GET', `/clients/${id}`);
+    const lines = formatAccountDetails(c.username, c.protocol, c.extra_data);
+    openModal(`
+      <h3>📋 ${c.username} — ${c.protocol.toUpperCase()}</h3>
+      <div class="account-box">${lines}</div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="copyText(\`${lines.replace(/`/g,'\\`')}\`)">Copy</button>
+        <button class="btn btn-primary" onclick="closeModal()">Close</button>
+      </div>`);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function renewClient(id, username) {
+  openModal(`
+    <h3>🔄 Renew Client — ${username}</h3>
+    <div class="form-group"><label>Additional Days</label>
+      <input id="renew-days" type="number" min="1" max="3650" value="30" /></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-success" onclick="submitRenew('${id}')">Renew</button>
+    </div>`);
+}
+
+async function submitRenew(id) {
+  try {
+    const days = parseInt(document.getElementById('renew-days').value);
+    const data = await api('POST', `/clients/${id}/renew`, { days });
+    closeModal();
+    toast(`Renewed! New expiry: ${data.expires_at}`);
+    clients();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function suspendClient(id, username) {
+  if (!confirm(`Suspend client '${username}'?`)) return;
+  try {
+    await api('POST', `/clients/${id}/suspend`);
+    toast(`Client '${username}' suspended`);
+    clients();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteClient(id, username) {
+  if (!confirm(`Delete client '${username}'? This will remove the system account.`)) return;
+  try {
+    await api('DELETE', `/clients/${id}`);
+    toast(`Client '${username}' deleted`);
+    clients();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// ─── Admins ──────────────────────────────────────────────────────────────────
+async function admins() {
+  if (currentAdmin?.role !== 'super_admin') {
+    document.getElementById('page-content').innerHTML = '<div class="card"><p style="color:var(--text2)">Super admin access required.</p></div>';
+    return;
+  }
+  document.getElementById('topbar-actions').innerHTML =
+    `<button class="btn btn-primary btn-sm" onclick="openCreateAdmin()">+ New Admin</button>`;
+  const el = document.getElementById('page-content');
+  el.innerHTML = '<div class="loading">Loading admins...</div>';
+  try {
+    const list = await api('GET', '/admins');
+    el.innerHTML = `<div class="card"><table>
+      <thead><tr><th>Username</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+      <tbody>${list.map(a => `
+        <tr>
+          <td><strong>${a.username}</strong></td>
+          <td><span class="badge badge-${a.role}">${a.role}</span></td>
+          <td><span class="badge badge-${a.status}">${a.status}</span></td>
+          <td>${a.created_at.split('T')[0]}</td>
+          <td>
+            <button class="btn btn-secondary btn-sm" onclick="editAdmin('${a.id}','${a.username}')">Edit</button>
+            ${a.role !== 'super_admin' ? `<button class="btn btn-warn btn-sm" onclick="promoteAdmin('${a.id}','${a.username}')">Promote</button>` : ''}
+            ${a.status === 'active' ? `<button class="btn btn-warn btn-sm" onclick="suspendAdmin('${a.id}','${a.username}')">Suspend</button>` : `<button class="btn btn-success btn-sm" onclick="activateAdmin('${a.id}','${a.username}')">Activate</button>`}
+            ${a.id !== currentAdmin.id ? `<button class="btn btn-danger btn-sm" onclick="deleteAdmin('${a.id}','${a.username}')">Delete</button>` : ''}
+          </td>
+        </tr>`).join('')}</tbody></table></div>`;
+  } catch (e) {
+    el.innerHTML = `<p class="text-danger">Error: ${e.message}</p>`;
+  }
+}
+
+function openCreateAdmin() {
+  openModal(`
+    <h3>➕ Create Admin</h3>
+    <form onsubmit="submitCreateAdmin(event)">
+      <div class="form-group"><label>Username</label><input id="a-user" required /></div>
+      <div class="form-group"><label>Password</label><input id="a-pass" type="password" required /></div>
+      <div class="form-group"><label>Role</label>
+        <select id="a-role"><option value="admin">Admin</option><option value="super_admin">Super Admin</option></select>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create</button>
+      </div>
+    </form>`);
+}
+
+async function submitCreateAdmin(e) {
+  e.preventDefault();
+  try {
+    await api('POST', '/admins', {
+      username: document.getElementById('a-user').value,
+      password: document.getElementById('a-pass').value,
+      role: document.getElementById('a-role').value
+    });
+    closeModal(); toast('Admin created!'); admins();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+function editAdmin(id, username) {
+  openModal(`
+    <h3>✏️ Edit Admin — ${username}</h3>
+    <form onsubmit="submitEditAdmin(event,'${id}')">
+      <div class="form-group"><label>New Username (optional)</label><input id="ea-user" placeholder="${username}" /></div>
+      <div class="form-group"><label>New Password (optional)</label><input id="ea-pass" type="password" /></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>`);
+}
+
+async function submitEditAdmin(e, id) {
+  e.preventDefault();
+  const body = {};
+  const u = document.getElementById('ea-user').value;
+  const p = document.getElementById('ea-pass').value;
+  if (u) body.username = u;
+  if (p) body.password = p;
+  if (!Object.keys(body).length) { toast('Nothing to update', 'error'); return; }
+  try {
+    await api('PUT', `/admins/${id}`, body);
+    closeModal(); toast('Admin updated!'); admins();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function promoteAdmin(id, username) {
+  if (!confirm(`Promote '${username}' to super_admin?`)) return;
+  try { await api('POST', `/admins/${id}/promote`); toast(`'${username}' promoted!`); admins(); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+async function suspendAdmin(id, username) {
+  if (!confirm(`Suspend admin '${username}'?`)) return;
+  try { await api('POST', `/admins/${id}/suspend`); toast(`Admin '${username}' suspended`); admins(); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+async function activateAdmin(id, username) {
+  try { await api('POST', `/admins/${id}/activate`); toast(`Admin '${username}' activated`); admins(); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteAdmin(id, username) {
+  if (!confirm(`Delete admin '${username}'?`)) return;
+  try { await api('DELETE', `/admins/${id}`); toast(`Admin '${username}' deleted`); admins(); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+// ─── Plans ───────────────────────────────────────────────────────────────────
+async function plans() {
+  if (currentAdmin?.role === 'super_admin') {
+    document.getElementById('topbar-actions').innerHTML =
+      `<button class="btn btn-primary btn-sm" onclick="openCreatePlan()">+ New Plan</button>`;
+  }
+  const el = document.getElementById('page-content');
+  el.innerHTML = '<div class="loading">Loading plans...</div>';
+  try {
+    const list = await api('GET', '/plans');
+    if (!list.length) { el.innerHTML = '<div class="card"><p style="color:var(--text2)">No plans yet.</p></div>'; return; }
+    el.innerHTML = `<div class="card"><table>
+      <thead><tr><th>Name</th><th>Duration</th><th>Price</th><th>Protocols</th><th>Connections</th><th>Status</th>${currentAdmin?.role === 'super_admin' ? '<th>Actions</th>' : ''}</tr></thead>
+      <tbody>${list.map(p => `
+        <tr>
+          <td><strong>${p.name}</strong><br><small style="color:var(--text2)">${p.description || ''}</small></td>
+          <td>${p.duration_days} days</td>
+          <td>${p.price > 0 ? '$' + p.price : 'Free'}</td>
+          <td>${(Array.isArray(p.protocols) ? p.protocols : [p.protocols]).join(', ')}</td>
+          <td>${p.max_connections}</td>
+          <td><span class="badge badge-${p.status}">${p.status}</span></td>
+          ${currentAdmin?.role === 'super_admin' ? `<td>
+            <button class="btn btn-warn btn-sm" onclick="editPlan('${p.id}')">Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="deletePlan('${p.id}','${p.name}')">Delete</button>
+          </td>` : ''}
+        </tr>`).join('')}</tbody></table></div>`;
+  } catch (e) {
+    el.innerHTML = `<p class="text-danger">Error: ${e.message}</p>`;
+  }
+}
+
+function openCreatePlan() {
+  openModal(`
+    <h3>➕ Create Plan</h3>
+    <form onsubmit="submitCreatePlan(event)">
+      <div class="form-row">
+        <div class="form-group"><label>Plan Name</label><input id="p-name" required placeholder="Basic 30 days" /></div>
+        <div class="form-group"><label>Duration (days)</label><input id="p-days" type="number" min="1" value="30" required /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Price ($)</label><input id="p-price" type="number" min="0" step="0.01" value="0" /></div>
+        <div class="form-group"><label>Max Connections</label><input id="p-conn" type="number" min="1" value="1" /></div>
+      </div>
+      <div class="form-group"><label>Description</label><input id="p-desc" placeholder="Optional description" /></div>
+      <div class="form-group"><label>Protocols (comma separated)</label>
+        <input id="p-protos" value="ssh" placeholder="ssh,vmess,vless" /></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create</button>
+      </div>
+    </form>`);
+}
+
+async function submitCreatePlan(e) {
+  e.preventDefault();
+  try {
+    await api('POST', '/plans', {
+      name: document.getElementById('p-name').value,
+      duration_days: parseInt(document.getElementById('p-days').value),
+      price: parseFloat(document.getElementById('p-price').value) || 0,
+      max_connections: parseInt(document.getElementById('p-conn').value) || 1,
+      description: document.getElementById('p-desc').value,
+      protocols: document.getElementById('p-protos').value.split(',').map(s => s.trim()).filter(Boolean)
+    });
+    closeModal(); toast('Plan created!'); plans();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function editPlan(id) {
+  try {
+    const list = await api('GET', '/plans');
+    const p = list.find(x => x.id === id);
+    if (!p) return;
+    openModal(`
+      <h3>✏️ Edit Plan — ${p.name}</h3>
+      <form onsubmit="submitEditPlan(event,'${id}')">
+        <div class="form-row">
+          <div class="form-group"><label>Name</label><input id="ep-name" value="${p.name}" /></div>
+          <div class="form-group"><label>Duration (days)</label><input id="ep-days" type="number" value="${p.duration_days}" /></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Price ($)</label><input id="ep-price" type="number" step="0.01" value="${p.price}" /></div>
+          <div class="form-group"><label>Status</label>
+            <select id="ep-status"><option ${p.status==='active'?'selected':''} value="active">Active</option><option ${p.status==='inactive'?'selected':''} value="inactive">Inactive</option></select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>`);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function submitEditPlan(e, id) {
+  e.preventDefault();
+  try {
+    await api('PUT', `/plans/${id}`, {
+      name: document.getElementById('ep-name').value,
+      duration_days: parseInt(document.getElementById('ep-days').value),
+      price: parseFloat(document.getElementById('ep-price').value),
+      status: document.getElementById('ep-status').value
+    });
+    closeModal(); toast('Plan updated!'); plans();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function deletePlan(id, name) {
+  if (!confirm(`Delete plan '${name}'?`)) return;
+  try { await api('DELETE', `/plans/${id}`); toast(`Plan '${name}' deleted`); plans(); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+// ─── Logs ────────────────────────────────────────────────────────────────────
+async function logs() {
+  const el = document.getElementById('page-content');
+  el.innerHTML = '<div class="loading">Loading logs...</div>';
+  try {
+    const data = await api('GET', '/logs?limit=100');
+    el.innerHTML = `
+      <div class="card" style="margin-bottom:0.5rem;">
+        <p style="font-size:0.85rem;color:var(--text2)">Showing last ${data.logs.length} of ${data.total} entries</p>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Date</th><th>Admin</th><th>Action</th><th>Target</th><th>IP</th></tr></thead>
+          <tbody>${data.logs.map(l => `
+            <tr>
+              <td style="font-size:0.78rem;white-space:nowrap">${l.created_at.replace('T',' ').split('.')[0]}</td>
+              <td>${l.admin_username || '-'}</td>
+              <td><code style="font-size:0.78rem">${l.action}</code></td>
+              <td>${l.target_type ? `${l.target_type}` : '-'}</td>
+              <td style="font-size:0.78rem">${l.ip_address || '-'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  } catch (e) {
+    el.innerHTML = `<p class="text-danger">Error: ${e.message}</p>`;
+  }
+}
+
+// ─── Settings ────────────────────────────────────────────────────────────────
+function settings() {
+  document.getElementById('page-content').innerHTML = `
+    <div class="card" style="max-width:480px;">
+      <h3>🔐 Change Credentials</h3>
+      <form onsubmit="submitChangeCredentials(event)">
+        <div class="form-group"><label>Current Password</label><input id="s-curr" type="password" required /></div>
+        <div class="form-group"><label>New Username (optional)</label><input id="s-newuser" placeholder="${currentAdmin?.username || ''}" /></div>
+        <div class="form-group"><label>New Password (optional)</label><input id="s-newpass" type="password" /></div>
+        <button type="submit" class="btn btn-primary">Update Credentials</button>
+      </form>
+    </div>`;
+}
+
+async function submitChangeCredentials(e) {
+  e.preventDefault();
+  const body = { current_password: document.getElementById('s-curr').value };
+  const nu = document.getElementById('s-newuser').value;
+  const np = document.getElementById('s-newpass').value;
+  if (nu) body.new_username = nu;
+  if (np) body.new_password = np;
+  if (!nu && !np) { toast('Enter new username or new password', 'error'); return; }
+  try {
+    await api('POST', '/auth/change-password', body);
+    toast('Credentials updated! Please log in again.');
+    setTimeout(logout, 1500);
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+(async () => {
+  if (token) {
+    try {
+      currentAdmin = (await api('GET', '/auth/me')).admin;
+      showApp();
+    } catch {
+      localStorage.removeItem('ntw_token');
+      token = '';
+    }
+  }
+})();
+</script>
+</body>
+</html>

@@ -83,6 +83,12 @@ echo -e "${LN}┃${NC} [15] • UNINSTALL NEXUS"
 echo -e "${LN}┃${NC}"
 echo -e "${LN}┃${NC} [00] • EXIT               [88] • REBOOT VPS"
 echo -e "${LN}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${NC}"
+echo -e "${LN}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${NC}"
+echo -e "${LN}┃${NC} ${BG}                   WEB PANEL                    ${NC} ${LN}┃${NC}"
+echo -e "${LN}┃${NC}"
+echo -e "${LN}┃${NC} [18] • NEXUS TUNNEL WEB"
+echo -e "${LN}┃${NC}"
+echo -e "${LN}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${NC}"
 if [ "$UPDATE_AVAILABLE" -eq 1 ]; then
 echo -e "${RD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${NC}"
 echo -e "${RD}┃${NC} ${RD}[99] • UPDATE SCRIPT (v$LATEST_VERSION)${NC}"
@@ -114,7 +120,7 @@ case $opt in
 13) clear ; log ;;
 14) clear ; tgbot ;;
 15) clear ; uninstall ;;
-15) clear ; uninstall ;;
+18) clear ; web ;;
 88) reboot ;;
 99) clear ; update ;;
 0 | 00) exit ;;
