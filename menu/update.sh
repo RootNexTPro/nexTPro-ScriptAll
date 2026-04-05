@@ -4,7 +4,7 @@ LN='\e[34m'
 NC='\e[0m'
 GR='\e[32m'
 RD='\e[31m'
-SERVER_HOST="https://raw.githubusercontent.com/naomierachel031-lab/Script-hysteria-and-any-other/main"
+SERVER_HOST="https://raw.githubusercontent.com/naomierachel031-lab/Clone-script-all-buddy/main"
 
 echo -e "${LN}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${NC}"
 echo -e "${LN}┃${NC} ${GR}       MISE À JOUR OTA (OVER-THE-AIR)             ${NC}${LN}┃${NC}"

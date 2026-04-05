@@ -1,5 +1,5 @@
 MYIP=$(curl -sS ipv4.icanhazip.com)
-readonly SERVER_HOST="https://raw.githubusercontent.com/naomierachel031-lab/Script-hysteria-and-any-other/main"
+readonly SERVER_HOST="https://raw.githubusercontent.com/naomierachel031-lab/Clone-script-all-buddy/main"
 clear
 LN='[34m'
 BG='[44m'

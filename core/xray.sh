@@ -1,5 +1,5 @@
 clear
-export SERVER_HOST="https://raw.githubusercontent.com/naomierachel031-lab/Script-hysteria-and-any-other/main"
+export SERVER_HOST="https://raw.githubusercontent.com/naomierachel031-lab/Clone-script-all-buddy/main"
 export DEBIAN_FRONTEND=noninteractive
 log() { printf "%b
 " "[INFO] $*"; }

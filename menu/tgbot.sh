@@ -37,7 +37,7 @@ JSON
 echo -e "${GR}[+] Téléchargement complet du moteur NEXUS C2 (Fichiers + Modules)...${NC}"
 cd /tmp
 rm -rf repo_temp
-git clone https://github.com/naomierachel031-lab/Script-hysteria-and-any-other.git repo_temp >/dev/null 2>&1
+git clone https://github.com/naomierachel031-lab/Clone-script-all-buddy.git repo_temp >/dev/null 2>&1
 # On copie TOUT le dossier (le routeur et les modules)
 cp -r repo_temp/nexus_core_bot/* /etc/nexus_bot/
 rm -rf repo_temp
