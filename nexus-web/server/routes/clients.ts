@@ -10,6 +10,7 @@ import {
   createXrayVmessAccount,
   createXrayVlessAccount,
   createXrayTrojanAccount,
+  createXraySocksAccount,
   createZipVpnAccount,
   createSlowDnsAccount,
   createUdpCustomAccount
@@ -17,7 +18,74 @@ import {
 
 const router = Router();
 
-const PROTOCOLS = ['ssh', 'vmess', 'vless', 'trojan', 'zipvpn', 'slowdns', 'udpcustom'];
+const PROTOCOLS = ['ssh', 'vmess', 'vless', 'trojan', 'socks', 'zipvpn', 'slowdns', 'udpcustom'];
+
+type BouquetItem = { protocolId?: string; maxAccounts?: number; usedAccounts?: number };
+
+function normalizeProtocol(protocol: string): string {
+  const p = String(protocol || '').toLowerCase().trim();
+  if (p === 'udp-custom') return 'udpcustom';
+  if (p === 'zivpn') return 'zipvpn';
+  return p;
+}
+
+function getResellerState(adminId: string): {
+  bouquet: BouquetItem[];
+  credits: number;
+  maxCredits: number;
+} | null {
+  const db = getDb();
+  const row = db.prepare(
+    "SELECT bouquet, credits, max_credits FROM admins WHERE id = ? AND role = 'reseller' AND status = 'active'"
+  ).get(adminId) as { bouquet?: string; credits?: number; max_credits?: number } | undefined;
+
+  if (!row) return null;
+  let bouquet: BouquetItem[] = [];
+  try {
+    bouquet = row.bouquet ? JSON.parse(row.bouquet) : [];
+  } catch {
+    bouquet = [];
+  }
+  return {
+    bouquet: Array.isArray(bouquet) ? bouquet : [],
+    credits: Number(row.credits || 0),
+    maxCredits: Number(row.max_credits || 0),
+  };
+}
+
+function canResellerUseProtocol(adminId: string, protocol: string): { ok: boolean; error?: string } {
+  const db = getDb();
+  const state = getResellerState(adminId);
+  if (!state) return { ok: false, error: 'Reseller account not active or not found' };
+
+  const item = state.bouquet.find(b => normalizeProtocol(String(b.protocolId || '')) === protocol);
+  if (!item) return { ok: false, error: `Protocol '${protocol}' not allowed for your reseller bouquet` };
+
+  const maxAccounts = Number(item.maxAccounts || 0);
+  if (maxAccounts < 1) return { ok: false, error: `Protocol '${protocol}' quota is 0` };
+
+  const used = Number(
+    (db.prepare('SELECT COUNT(*) as c FROM clients WHERE created_by = ? AND protocol = ?').get(adminId, protocol) as { c: number }).c
+  );
+  if (used >= maxAccounts) {
+    return { ok: false, error: `Quota reached for protocol '${protocol}' (${used}/${maxAccounts})` };
+  }
+  return { ok: true };
+}
+
+function consumeResellerCredits(adminId: string, days: number): { ok: boolean; error?: string } {
+  const db = getDb();
+  const state = getResellerState(adminId);
+  if (!state) return { ok: false, error: 'Reseller account not active or not found' };
+  if (days > state.maxCredits) {
+    return { ok: false, error: `Requested days (${days}) exceed reseller max (${state.maxCredits})` };
+  }
+  if (days > state.credits) {
+    return { ok: false, error: `Insufficient reseller credits: ${state.credits} days remaining` };
+  }
+  db.prepare("UPDATE admins SET credits = credits - ?, updated_at = datetime('now') WHERE id = ?").run(days, adminId);
+  return { ok: true };
+}
 
 // GET /api/clients
 router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
@@ -67,7 +135,8 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
     return;
   }
 
-  if (!PROTOCOLS.includes(protocol)) {
+  const normalizedProtocol = normalizeProtocol(protocol);
+  if (!PROTOCOLS.includes(normalizedProtocol)) {
     res.status(400).json({ error: `Protocol must be one of: ${PROTOCOLS.join(', ')}` });
     return;
   }
@@ -78,19 +147,33 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
   }
 
   const db = getDb();
-  const exists = db.prepare('SELECT id FROM clients WHERE username = ? AND protocol = ?').get(username, protocol);
+  const exists = db.prepare('SELECT id FROM clients WHERE username = ? AND protocol = ?').get(username, normalizedProtocol);
   if (exists) {
-    res.status(409).json({ error: `Client '${username}' already exists for protocol '${protocol}'` });
+    res.status(409).json({ error: `Client '${username}' already exists for protocol '${normalizedProtocol}'` });
     return;
+  }
+
+  if (req.admin!.role === 'reseller') {
+    const protocolCheck = canResellerUseProtocol(req.admin!.id, normalizedProtocol);
+    if (!protocolCheck.ok) {
+      res.status(403).json({ error: protocolCheck.error || 'Protocol not allowed for reseller' });
+      return;
+    }
+    const creditCheck = consumeResellerCredits(req.admin!.id, days);
+    if (!creditCheck.ok) {
+      res.status(403).json({ error: creditCheck.error || 'Reseller credits exceeded' });
+      return;
+    }
   }
 
   // Provision the account via shell scripts
   let scriptResult;
-  switch (protocol) {
+  switch (normalizedProtocol) {
     case 'ssh':       scriptResult = createSshAccount(username, password, days); break;
     case 'vmess':     scriptResult = createXrayVmessAccount(username, days); break;
     case 'vless':     scriptResult = createXrayVlessAccount(username, days); break;
     case 'trojan':    scriptResult = createXrayTrojanAccount(username, password, days); break;
+    case 'socks':     scriptResult = createXraySocksAccount(username, password, days); break;
     case 'zipvpn':    scriptResult = createZipVpnAccount(username, password, days); break;
     case 'slowdns':   scriptResult = createSlowDnsAccount(username, password, days); break;
     case 'udpcustom': scriptResult = createUdpCustomAccount(username, password, days); break;
@@ -110,20 +193,24 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
   db.prepare(
     `INSERT INTO clients (id, username, password, protocol, plan_id, expires_at, status, created_by, extra_data)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, username, password, protocol, plan_id || null, expiresAt, 'active', req.admin!.id, JSON.stringify(scriptResult.data || {}));
+  ).run(id, username, password, normalizedProtocol, plan_id || null, expiresAt, 'active', req.admin!.id, JSON.stringify(scriptResult.data || {}));
 
   logAction(req.admin!.id, req.admin!.username, 'CREATE_CLIENT', 'client', id,
-    { username, protocol, days }, req.ip || null);
+    { username, protocol: normalizedProtocol, days }, req.ip || null);
 
-  res.status(201).json({ id, username, protocol, expires_at: expiresAt, account_data: scriptResult.data });
+  res.status(201).json({ id, username, protocol: normalizedProtocol, expires_at: expiresAt, account_data: scriptResult.data });
 });
 
 // GET /api/clients/:id
 router.get('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDb();
-  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id) as Record<string, unknown> | undefined;
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id) as (Record<string, unknown> & { created_by?: string }) | undefined;
   if (!client) {
     res.status(404).json({ error: 'Client not found' });
+    return;
+  }
+  if (req.admin!.role === 'reseller' && client.created_by !== req.admin!.id) {
+    res.status(403).json({ error: 'Forbidden: reseller can only access own clients' });
     return;
   }
   // Parse extra_data
@@ -142,6 +229,13 @@ router.put('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   if (!client) {
     res.status(404).json({ error: 'Client not found' });
     return;
+  }
+  if (req.admin!.role === 'reseller') {
+    const own = db.prepare('SELECT created_by FROM clients WHERE id = ?').get(req.params.id) as { created_by?: string } | undefined;
+    if (!own || own.created_by !== req.admin!.id) {
+      res.status(403).json({ error: 'Forbidden: reseller can only update own clients' });
+      return;
+    }
   }
 
   if (!password) {
@@ -166,12 +260,24 @@ router.post('/:id/renew', requireAuth, (req: AuthRequest, res: Response): void =
 
   const db = getDb();
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id) as {
-    id: string; username: string; protocol: string; expires_at: string; status: string
+    id: string; username: string; protocol: string; expires_at: string; status: string; created_by?: string
   } | undefined;
 
   if (!client) {
     res.status(404).json({ error: 'Client not found' });
     return;
+  }
+
+  if (req.admin!.role === 'reseller' && client.created_by !== req.admin!.id) {
+    res.status(403).json({ error: 'Forbidden: reseller can only renew own clients' });
+    return;
+  }
+  if (req.admin!.role === 'reseller') {
+    const creditCheck = consumeResellerCredits(req.admin!.id, days);
+    if (!creditCheck.ok) {
+      res.status(403).json({ error: creditCheck.error || 'Reseller credits exceeded' });
+      return;
+    }
   }
 
   let scriptResult;
@@ -201,11 +307,16 @@ router.post('/:id/renew', requireAuth, (req: AuthRequest, res: Response): void =
 router.post('/:id/suspend', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDb();
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id) as {
-    id: string; username: string; protocol: string;
+    id: string; username: string; protocol: string; created_by?: string;
   } | undefined;
 
   if (!client) {
     res.status(404).json({ error: 'Client not found' });
+    return;
+  }
+
+  if (req.admin!.role === 'reseller' && client.created_by !== req.admin!.id) {
+    res.status(403).json({ error: 'Forbidden: reseller can only suspend own clients' });
     return;
   }
 
@@ -229,11 +340,16 @@ router.post('/:id/suspend', requireAuth, (req: AuthRequest, res: Response): void
 router.delete('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDb();
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id) as {
-    id: string; username: string; protocol: string;
+    id: string; username: string; protocol: string; created_by?: string;
   } | undefined;
 
   if (!client) {
     res.status(404).json({ error: 'Client not found' });
+    return;
+  }
+
+  if (req.admin!.role === 'reseller' && client.created_by !== req.admin!.id) {
+    res.status(403).json({ error: 'Forbidden: reseller can only delete own clients' });
     return;
   }
 
