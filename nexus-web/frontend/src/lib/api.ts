@@ -98,8 +98,8 @@ export const api = {
 
   createClient: (data: any) => apiRequest<any>('POST', '/clients', data),
 
-  renewClient: (id: string, duration_days: number) =>
-    apiRequest<any>('POST', `/clients/${id}/renew`, { duration_days }),
+  renewClient: (id: string, days: number) =>
+    apiRequest<any>('POST', `/clients/${id}/renew`, { days }),
 
   suspendClient: (id: string) => apiRequest<any>('POST', `/clients/${id}/suspend`),
   deleteClient: (id: string) => apiRequest<any>('DELETE', `/clients/${id}`),

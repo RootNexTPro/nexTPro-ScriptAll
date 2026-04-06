@@ -185,7 +185,17 @@ export function suspendSshAccount(username: string): AccountResult {
 function readXrayConfig(): Record<string, unknown> {
   if (!fs.existsSync(XRAY_CONFIG)) return {};
   try {
-    return JSON.parse(fs.readFileSync(XRAY_CONFIG, 'utf8'));
+    const raw = fs.readFileSync(XRAY_CONFIG, 'utf8');
+    try {
+      return JSON.parse(raw);
+    } catch {
+      // Compatibility: some legacy configs contain marker lines like "#vless" or "### user date"
+      const cleaned = raw
+        .split('\n')
+        .filter(line => !line.trim().startsWith('#'))
+        .join('\n');
+      return JSON.parse(cleaned);
+    }
   } catch {
     return {};
   }
@@ -202,17 +212,51 @@ function generateUUID(): string {
 
 type XrayInbound = {
   protocol?: string;
+  tag?: string;
+  streamSettings?: {
+    network?: string;
+    wsSettings?: { path?: string };
+    grpcSettings?: { serviceName?: string };
+  };
   settings?: {
-    clients?: Array<{ id?: string; email?: string; flow?: string }>;
+    clients?: Array<{ id?: string; email?: string; flow?: string; password?: string }>;
     users?: Array<{ password?: string; email?: string }>;
     accounts?: Array<{ user?: string; pass?: string; email?: string }>;
   };
 };
 
-function findInbound(cfg: Record<string, unknown>, protocol: string): XrayInbound | undefined {
+function findInbounds(cfg: Record<string, unknown>, protocol: string): XrayInbound[] {
   const inbounds = cfg['inbounds'] as XrayInbound[] | undefined;
-  if (!inbounds) return undefined;
-  return inbounds.find(i => i.protocol === protocol);
+  if (!inbounds) return [];
+  return inbounds.filter(i => i.protocol === protocol);
+}
+
+function saveAndRestartXray(cfg: Record<string, unknown>): void {
+  fs.writeFileSync(XRAY_CONFIG, JSON.stringify(cfg, null, 2));
+  spawnSync('systemctl', ['restart', 'xray'], { encoding: 'utf8' });
+}
+
+function ensureEmailClient(inbound: XrayInbound, client: { id?: string; password?: string; email: string; flow?: string }): void {
+  inbound.settings = inbound.settings || {};
+  inbound.settings.clients = inbound.settings.clients || [];
+  const exists = inbound.settings.clients.some(c => c.email === client.email);
+  if (!exists) {
+    const toInsert: { id?: string; email?: string; flow?: string; password?: string } = { email: client.email };
+    if (client.id) toInsert.id = client.id;
+    if (client.flow) toInsert.flow = client.flow;
+    if (client.password) toInsert.password = client.password;
+    inbound.settings.clients.push(toInsert);
+  }
+}
+
+function ensureSocksClient(inbound: XrayInbound, username: string, password: string): void {
+  inbound.settings = inbound.settings || {};
+  inbound.settings.accounts = inbound.settings.accounts || [];
+  const acc = inbound.settings.accounts;
+  const exists = acc.some(a => a.user === username);
+  if (!exists) {
+    acc.push({ user: username, pass: password, email: username });
+  }
 }
 
 export function createXrayVmessAccount(username: string, days: number): AccountResult {
@@ -221,26 +265,18 @@ export function createXrayVmessAccount(username: string, days: number): AccountR
     validateDays(days);
 
     const cfg = readXrayConfig();
-    const inbound = findInbound(cfg, 'vmess');
-    if (!inbound) return { success: false, error: 'VMess inbound not found in xray config' };
+    const inbounds = findInbounds(cfg, 'vmess');
+    if (!inbounds.length) return { success: false, error: 'VMess inbound not found in xray config' };
 
     const uuid = generateUUID();
     const expiryResult = spawnSync('date', ['-d', `${days} days`, '+%Y-%m-%d'], { encoding: 'utf8' });
     const expiry = expiryResult.stdout.trim();
 
-    inbound.settings = inbound.settings || {};
-    inbound.settings.clients = inbound.settings.clients || [];
-    inbound.settings.clients.push({ id: uuid, email: username });
+    for (const inbound of inbounds) {
+      ensureEmailClient(inbound, { id: uuid, email: username });
+    }
 
-    const inbounds = cfg['inbounds'] as XrayInbound[];
-    const idx = inbounds.findIndex(i => i.protocol === 'vmess');
-    inbounds[idx] = inbound;
-
-    // Store expiry marker in config as comment (consistent with shell script approach)
-    const cfgStr = JSON.stringify(cfg, null, 2);
-    const marked = `### ${username} ${expiry}\n${cfgStr}`;
-    fs.writeFileSync(XRAY_CONFIG, marked);
-    spawnSync('systemctl', ['restart', 'xray'], { encoding: 'utf8' });
+    saveAndRestartXray(cfg);
 
     const domain = getDomain();
     const myip = getServerIp();
@@ -271,25 +307,20 @@ export function createXrayVlessAccount(username: string, days: number): AccountR
     validateDays(days);
 
     const cfg = readXrayConfig();
-    const inbound = findInbound(cfg, 'vless');
-    if (!inbound) return { success: false, error: 'VLESS inbound not found in xray config' };
+    const inbounds = findInbounds(cfg, 'vless');
+    if (!inbounds.length) return { success: false, error: 'VLESS inbound not found in xray config' };
 
     const uuid = generateUUID();
     const expiryResult = spawnSync('date', ['-d', `${days} days`, '+%Y-%m-%d'], { encoding: 'utf8' });
     const expiry = expiryResult.stdout.trim();
 
-    inbound.settings = inbound.settings || {};
-    inbound.settings.clients = inbound.settings.clients || [];
-    inbound.settings.clients.push({ id: uuid, email: username, flow: 'xtls-rprx-vision' });
+    for (const inbound of inbounds) {
+      const network = inbound.streamSettings?.network;
+      const flow = network === 'grpc' ? undefined : 'xtls-rprx-vision';
+      ensureEmailClient(inbound, { id: uuid, email: username, flow });
+    }
 
-    const inbounds = cfg['inbounds'] as XrayInbound[];
-    const idx = inbounds.findIndex(i => i.protocol === 'vless');
-    inbounds[idx] = inbound;
-
-    const cfgStr = JSON.stringify(cfg, null, 2);
-    const marked = `#& ${username} ${expiry}\n${cfgStr}`;
-    fs.writeFileSync(XRAY_CONFIG, marked);
-    spawnSync('systemctl', ['restart', 'xray'], { encoding: 'utf8' });
+    saveAndRestartXray(cfg);
 
     const domain = getDomain();
     const myip = getServerIp();
@@ -320,24 +351,17 @@ export function createXrayTrojanAccount(username: string, password: string, days
     validateDays(days);
 
     const cfg = readXrayConfig();
-    const inbound = findInbound(cfg, 'trojan');
-    if (!inbound) return { success: false, error: 'Trojan inbound not found in xray config' };
+    const inbounds = findInbounds(cfg, 'trojan');
+    if (!inbounds.length) return { success: false, error: 'Trojan inbound not found in xray config' };
 
     const expiryResult = spawnSync('date', ['-d', `${days} days`, '+%Y-%m-%d'], { encoding: 'utf8' });
     const expiry = expiryResult.stdout.trim();
 
-    inbound.settings = inbound.settings || {};
-    inbound.settings.clients = inbound.settings.clients || [];
-    inbound.settings.clients.push({ id: password, email: username } as { id: string; email: string });
+    for (const inbound of inbounds) {
+      ensureEmailClient(inbound, { password, email: username });
+    }
 
-    const inbounds = cfg['inbounds'] as XrayInbound[];
-    const idx = inbounds.findIndex(i => i.protocol === 'trojan');
-    inbounds[idx] = inbound;
-
-    const cfgStr = JSON.stringify(cfg, null, 2);
-    const marked = `#! ${username} ${expiry}\n${cfgStr}`;
-    fs.writeFileSync(XRAY_CONFIG, marked);
-    spawnSync('systemctl', ['restart', 'xray'], { encoding: 'utf8' });
+    saveAndRestartXray(cfg);
 
     const domain = getDomain();
     const myip = getServerIp();
@@ -351,6 +375,50 @@ export function createXrayTrojanAccount(username: string, password: string, days
         domain,
         host: myip,
         protocol: 'trojan',
+        port: 443
+      }
+    };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+
+export function createXraySocksAccount(username: string, password: string, days: number): AccountResult {
+  try {
+    validateUsername(username);
+    validateDays(days);
+
+    const cfg = readXrayConfig();
+    const inbounds = findInbounds(cfg, 'shadowsocks');
+    if (!inbounds.length) return { success: false, error: 'SOCKS/Shadowsocks inbound not found in xray config' };
+
+    const expiryResult = spawnSync('date', ['-d', `${days} days`, '+%Y-%m-%d'], { encoding: 'utf8' });
+    const expiry = expiryResult.stdout.trim();
+
+    for (const inbound of inbounds) {
+      // Some xray templates use clients(password), others accounts(user/pass)
+      inbound.settings = inbound.settings || {};
+      if (Array.isArray(inbound.settings.clients)) {
+        const exists = inbound.settings.clients.some(c => c.email === username);
+        if (!exists) inbound.settings.clients.push({ password, email: username });
+      } else {
+        ensureSocksClient(inbound, username, password);
+      }
+    }
+
+    saveAndRestartXray(cfg);
+
+    const domain = getDomain();
+    const myip = getServerIp();
+    return {
+      success: true,
+      data: {
+        username,
+        password,
+        expiry,
+        domain,
+        host: myip,
+        protocol: 'socks',
         port: 443
       }
     };

@@ -16,6 +16,8 @@ CONFIG_DIR="/etc/nexus-tunnel-web"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 SERVICE="nexus-web"
 INSTALL_SH="$NEXUS_WEB_DIR/install.sh"
+NEXUS_REPO_URL="https://github.com/naomierachel031-lab/Clone-script-all-buddy.git"
+TMP_WEB_SRC="/tmp/nexus-web-src-$$"
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -69,6 +71,48 @@ wait_key() {
   echo ""
   read -n 1 -s -r -p "  Press any key to continue..."
   echo ""
+}
+
+log_info() {
+  echo -e "${YL}[INFO]${NC} $*"
+}
+
+resolve_web_source_dir() {
+  local base src
+  base="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+  # 1) bundled next to menu dir in repository clone
+  src="$base/../nexus-web"
+  if [ -d "$src" ] && [ -f "$src/install.sh" ]; then
+    echo "$src"
+    return 0
+  fi
+
+  # 2) already copied on server where menu expects it
+  src="/usr/local/sbin/nexus-web"
+  if [ -d "$src" ] && [ -f "$src/install.sh" ]; then
+    echo "$src"
+    return 0
+  fi
+
+  # 3) already installed app source
+  src="/opt/nexus-tunnel-web"
+  if [ -d "$src" ] && [ -f "$src/install.sh" ]; then
+    echo "$src"
+    return 0
+  fi
+
+  # 4) fallback: shallow clone repository in /tmp and use nexus-web folder
+  rm -rf "$TMP_WEB_SRC"
+  if git clone --depth 1 "$NEXUS_REPO_URL" "$TMP_WEB_SRC" >/dev/null 2>&1; then
+    src="$TMP_WEB_SRC/nexus-web"
+    if [ -d "$src" ] && [ -f "$src/install.sh" ]; then
+      echo "$src"
+      return 0
+    fi
+  fi
+
+  return 1
 }
 
 # ─── API Helper ───────────────────────────────────────────────────────────────
@@ -178,22 +222,24 @@ function ntw_install() {
   echo -e "  Vous aurez besoin de définir un identifiant admin."
   echo ""
 
-  # Download or use local source
   local src_dir
-  src_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/nexus-web"
-
-  if [ -d "$src_dir" ] && [ -f "$src_dir/install.sh" ]; then
+  if src_dir="$(resolve_web_source_dir)"; then
     bash "$src_dir/install.sh"
   elif [ -f /opt/nexus-tunnel-web/install.sh ]; then
     bash /opt/nexus-tunnel-web/install.sh
   else
     echo -e "${RD}  [ERROR] Source install script not found.${NC}"
-    echo -e "  Expected: $src_dir/install.sh"
+    echo -e "  Expected one of:"
+    echo -e "    - /usr/local/sbin/nexus-web/install.sh"
+    echo -e "    - /opt/nexus-tunnel-web/install.sh"
+    echo -e "    - <repo>/nexus-web/install.sh"
+    echo -e "  Tip: check internet access if auto-fetch failed."
     wait_key
     nexus_web_menu
     return
   fi
 
+  rm -rf "$TMP_WEB_SRC" 2>/dev/null || true
   wait_key
   nexus_web_menu
 }
@@ -763,9 +809,7 @@ function ntw_update() {
   fi
 
   local src_dir
-  src_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/nexus-web"
-
-  if [ -d "$src_dir" ]; then
+  if src_dir="$(resolve_web_source_dir)"; then
     log_info "Copying updated sources..."
     cp -r "$src_dir"/* "$NEXUS_WEB_DIR/"
     cd "$NEXUS_WEB_DIR"
@@ -774,9 +818,10 @@ function ntw_update() {
     systemctl restart "$SERVICE"
     echo -e "  ${GR}[OK] Mise à jour terminée!${NC}"
   else
-    echo -e "  ${RD}[ERROR] Répertoire source introuvable: $src_dir${NC}"
+    echo -e "  ${RD}[ERROR] Répertoire source introuvable ou inaccessible.${NC}"
   fi
 
+  rm -rf "$TMP_WEB_SRC" 2>/dev/null || true
   wait_key
   nexus_web_menu
 }

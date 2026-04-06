@@ -5,6 +5,14 @@ import { getDb, logAction } from '../db';
 import { requireAuth, requireSuperAdmin, AuthRequest } from '../middleware/auth';
 
 const router = Router();
+const ALLOWED_PROTOCOLS = new Set(['ssh', 'vmess', 'vless', 'trojan', 'socks', 'zipvpn', 'slowdns', 'udpcustom']);
+
+function normalizeProtocol(protocol: string): string {
+  const p = String(protocol || '').toLowerCase().trim();
+  if (p === 'udp-custom') return 'udpcustom';
+  if (p === 'zivpn') return 'zipvpn';
+  return p;
+}
 
 // GET /api/resellers — list all resellers (admin or super_admin)
 router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
@@ -50,8 +58,32 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
     return;
   }
 
-  const days = duration_days && duration_days > 0 ? duration_days : 30;
+  const days = Number.isInteger(duration_days) && (duration_days as number) > 0 ? (duration_days as number) : 30;
+  if (days < 1 || days > 3650) {
+    res.status(400).json({ error: 'duration_days must be between 1 and 3650' });
+    return;
+  }
   const expiryDate = new Date(Date.now() + days * 86400 * 1000).toISOString().split('T')[0];
+
+  const normalizedBouquet = Array.isArray(bouquet) ? bouquet : [];
+  const seen = new Set<string>();
+  for (const b of normalizedBouquet) {
+    const proto = normalizeProtocol(String(b?.protocolId || ''));
+    const maxAccounts = Number(b?.maxAccounts || 0);
+    if (!ALLOWED_PROTOCOLS.has(proto)) {
+      res.status(400).json({ error: `Invalid protocol in bouquet: ${proto}` });
+      return;
+    }
+    if (!Number.isInteger(maxAccounts) || maxAccounts < 1 || maxAccounts > 100000) {
+      res.status(400).json({ error: `Invalid maxAccounts for protocol '${proto}'` });
+      return;
+    }
+    if (seen.has(proto)) {
+      res.status(400).json({ error: `Duplicate protocol in bouquet: ${proto}` });
+      return;
+    }
+    seen.add(proto);
+  }
 
   const db = getDb();
   const exists = db.prepare('SELECT id FROM admins WHERE username = ?').get(username);
@@ -62,7 +94,12 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
 
   const id = uuidv4();
   const hash = bcrypt.hashSync(password, 12);
-  const bouquetJson = JSON.stringify(bouquet || []);
+  const bouquetJson = JSON.stringify(
+    normalizedBouquet.map((b) => ({
+      protocolId: normalizeProtocol(String(b.protocolId)),
+      maxAccounts: Number(b.maxAccounts),
+    }))
+  );
 
   db.prepare(
     `INSERT INTO admins (id, username, password_hash, role, status, bouquet, expiry_date, credits, max_credits)
