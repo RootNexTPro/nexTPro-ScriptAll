@@ -77,13 +77,30 @@ router.get('/me', requireAuth, (req: AuthRequest, res: Response): void => {
     return;
   }
 
+  let bouquet: unknown = admin.bouquet;
+  try {
+    const parsed = typeof admin.bouquet === 'string' ? JSON.parse(admin.bouquet) : admin.bouquet;
+    if (Array.isArray(parsed)) {
+      bouquet = parsed.map((b: any) => {
+        const protocolId = String(b?.protocolId || '').toLowerCase();
+        const usedRow = db.prepare('SELECT COUNT(*) as c FROM clients WHERE created_by = ? AND protocol = ?')
+          .get(admin.id, protocolId) as { c: number };
+        return {
+          protocolId,
+          maxAccounts: Number(b?.maxAccounts || 0),
+          usedAccounts: Number(usedRow?.c || 0),
+        };
+      });
+    }
+  } catch {}
+
   res.json({
     admin: {
       id: admin.id,
       username: admin.username,
       role: admin.role,
       status: admin.status,
-      bouquet: admin.bouquet,
+      bouquet,
       expiry_date: admin.expiry_date,
       credits: admin.credits,
       max_credits: admin.max_credits,
