@@ -219,7 +219,7 @@ type XrayInbound = {
     grpcSettings?: { serviceName?: string };
   };
   settings?: {
-    clients?: Array<{ id?: string; email?: string; flow?: string }>;
+    clients?: Array<{ id?: string; email?: string; flow?: string; password?: string }>;
     users?: Array<{ password?: string; email?: string }>;
     accounts?: Array<{ user?: string; pass?: string; email?: string }>;
   };
@@ -245,7 +245,7 @@ function ensureEmailClient(inbound: XrayInbound, client: { id?: string; password
     if (client.id) toInsert.id = client.id;
     if (client.flow) toInsert.flow = client.flow;
     if (client.password) toInsert.password = client.password;
-    inbound.settings.clients.push(toInsert as { id?: string; email?: string; flow?: string });
+    inbound.settings.clients.push(toInsert);
   }
 }
 
@@ -400,7 +400,7 @@ export function createXraySocksAccount(username: string, password: string, days:
       inbound.settings = inbound.settings || {};
       if (Array.isArray(inbound.settings.clients)) {
         const exists = inbound.settings.clients.some(c => c.email === username);
-        if (!exists) inbound.settings.clients.push({ password, email: username } as unknown as { id?: string; email?: string; flow?: string });
+        if (!exists) inbound.settings.clients.push({ password, email: username });
       } else {
         ensureSocksClient(inbound, username, password);
       }

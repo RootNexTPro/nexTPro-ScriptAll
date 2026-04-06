@@ -86,6 +86,8 @@ function initSchema(): void {
       expires_at TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE INDEX IF NOT EXISTS idx_clients_created_by ON clients(created_by);
   `);
 
   // Migration: add new columns to admins table if they don't exist
