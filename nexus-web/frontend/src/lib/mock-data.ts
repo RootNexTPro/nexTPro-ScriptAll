@@ -108,13 +108,23 @@ export const protocols: Protocol[] = [
     ],
   },
   {
-    id: 'udp-custom',
+    id: 'udpcustom',
     name: 'UDP Custom',
     description: 'UDP Custom sur tous les ports',
     icon: '📡',
     isEnabled: true,
     ports: [
       { service: 'UDP Custom', transport: 'UDP', tls: '1-65535', ntls: '-' },
+    ],
+  },
+  {
+    id: 'zipvpn',
+    name: 'ZipVPN',
+    description: 'Compte ZipVPN (Nexus Tunnel)',
+    icon: '🧩',
+    isEnabled: true,
+    ports: [
+      { service: 'ZipVPN', transport: 'TCP/UDP', tls: 'Auto', ntls: '-' },
     ],
   },
 ];

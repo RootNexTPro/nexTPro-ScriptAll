@@ -46,9 +46,12 @@ function saveSettings(data: Record<string, any>): void {
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify(data, null, 2));
 }
 
-function detectServerInfo(): { ip: string; domain: string } {
+function detectServerInfo(): { ip: string; domain: string; nsDomain: string; slowdnsPub: string; openvpnDownload: string } {
   let ip = '';
   let domain = '';
+  let nsDomain = '';
+  let slowdnsPub = '';
+  let openvpnDownload = '';
 
   try {
     ip = execSync('curl -s4 --connect-timeout 3 ipv4.icanhazip.com', { timeout: 5000 })
@@ -62,23 +65,40 @@ function detectServerInfo(): { ip: string; domain: string } {
     }
   } catch {}
 
-  return { ip, domain };
+  try {
+    if (fs.existsSync('/etc/slowdns/nsdomain')) {
+      nsDomain = fs.readFileSync('/etc/slowdns/nsdomain', 'utf8').trim();
+    }
+  } catch {}
+
+  try {
+    if (fs.existsSync('/etc/slowdns/server.pub')) {
+      slowdnsPub = fs.readFileSync('/etc/slowdns/server.pub', 'utf8').trim();
+    }
+  } catch {}
+
+  if (domain) {
+    openvpnDownload = `https://${domain}:2081`;
+  }
+
+  return { ip, domain, nsDomain, slowdnsPub, openvpnDownload };
 }
 
 // GET /api/settings
 router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
   const settings = loadSettings();
 
-  // Auto-detect server info if not already set
-  if (!settings.server?.ip || !settings.server?.domain) {
-    const detected = detectServerInfo();
-    settings.server = {
-      ...DEFAULT_SETTINGS.server,
-      ...settings.server,
-      ip: settings.server?.ip || detected.ip,
-      domain: settings.server?.domain || detected.domain,
-    };
-  }
+  // Auto-detect and auto-fill server info from host machine when fields are missing
+  const detected = detectServerInfo();
+  settings.server = {
+    ...DEFAULT_SETTINGS.server,
+    ...settings.server,
+    ip: settings.server?.ip || detected.ip,
+    domain: settings.server?.domain || detected.domain,
+    nsDomain: settings.server?.nsDomain || detected.nsDomain,
+    slowdnsPub: settings.server?.slowdnsPub || detected.slowdnsPub,
+    openvpnDownload: settings.server?.openvpnDownload || detected.openvpnDownload,
+  };
 
   res.json(settings);
 });

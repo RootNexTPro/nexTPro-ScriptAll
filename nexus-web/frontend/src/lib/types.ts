@@ -20,7 +20,7 @@ export interface User {
   bouquet?: ProtocolQuota[];
 }
 
-export type ProtocolType = 'ssh' | 'vmess' | 'vless' | 'trojan' | 'socks' | 'openvpn' | 'slowdns' | 'udp-custom';
+export type ProtocolType = 'ssh' | 'vmess' | 'vless' | 'trojan' | 'socks' | 'openvpn' | 'slowdns' | 'udpcustom' | 'zipvpn';
 
 export interface Protocol {
   id: ProtocolType;

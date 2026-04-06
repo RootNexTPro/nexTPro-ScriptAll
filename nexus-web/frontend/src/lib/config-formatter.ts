@@ -18,7 +18,8 @@ export function formatConfig(data: AccountData, server: ServerConfig): string {
     case 'socks': return formatXray('SOCKS', data, server);
     case 'openvpn': return formatOpenVPN(data, server);
     case 'slowdns': return formatSlowDNS(data, server);
-    case 'udp-custom': return formatUDPCustom(data, server);
+    case 'udpcustom': return formatUDPCustom(data, server);
+    case 'zipvpn': return formatZipVPN(data, server);
     default: return '';
   }
 }
@@ -127,5 +128,20 @@ function formatUDPCustom(data: AccountData, server: ServerConfig): string {
 ●${LINE}●
 ┃ Auth String
 ┃ ${server.domain}:1-65535@${data.username}:${data.password}
+┗${LINE}┛`;
+}
+
+function formatZipVPN(data: AccountData, server: ServerConfig): string {
+  return `┏${LINE}┓
+┃            ZIPVPN ACCOUNT DETAILS               ┃
+┗${LINE}┛
+┏${LINE}┓
+┃ Username    : ${data.username}
+┃ Password    : ${data.password}
+┃ Expiry Date : ${data.expiryDate}
+┃ Domain      : ${server.domain}
+●${LINE}●
+┃ Protocol    : ZIPVPN
+┃ Notes       : Utilisez les identifiants dans l'application ZipVPN
 ┗${LINE}┛`;
 }
