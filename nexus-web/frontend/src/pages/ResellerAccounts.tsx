@@ -112,7 +112,8 @@ export default function ResellerAccounts() {
     a.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Status is determined by server-stored status + expiry date (server-side date for comparison)
+  // Display status: account is active if both the status field is active AND the expiry date has not passed.
+  // Note: security-critical expiry enforcement is server-side; this is display-only.
   const isActive = (client: Client) =>
     client.status === 'active' && new Date(client.expires_at) > new Date();
 

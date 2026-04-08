@@ -203,7 +203,7 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
     return;
   }
 
-  const expiresAt = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d || new Date(Date.now() + days * 86400 * 1000).toISOString().split('T')[0];
+  const expiresAt = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d;
   const id = uuidv4();
 
   try {
@@ -323,7 +323,7 @@ router.post('/:id/renew', requireAuth, (req: AuthRequest, res: Response): void =
     return;
   }
 
-  const newExpiry = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d || new Date(Date.now() + days * 86400 * 1000).toISOString().split('T')[0];
+  const newExpiry = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d;
   db.prepare("UPDATE clients SET expires_at = ?, status = 'active', updated_at = datetime('now') WHERE id = ?")
     .run(newExpiry, req.params.id);
 

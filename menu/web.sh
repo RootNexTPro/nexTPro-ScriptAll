@@ -811,8 +811,8 @@ function ntw_update() {
 
   # Pour la mise à jour on clone TOUJOURS depuis GitHub afin d'avoir
   # la vraie dernière version, pas la copie locale déjà installée.
-  local tmp_src="/tmp/nexus-web-update-$$"
-  rm -rf "$tmp_src"
+  local tmp_src
+  tmp_src="$(mktemp -d)"
 
   log_info "Téléchargement de la dernière version depuis GitHub..."
   if ! git clone --depth 1 "$NEXUS_REPO_URL" "$tmp_src" 2>&1 | tail -5; then

@@ -26,11 +26,10 @@ echo -e "${LN}┗━━━━━━━━━━━━━━━━━━━━━
 
 NEXUS_WEB_DIR="/opt/nexus-tunnel-web"
 NEXUS_REPO_URL="https://github.com/naomierachel031-lab/Clone-script-all-buddy.git"
-NTW_TMP="/tmp/nexus-web-ota-$$"
+NTW_TMP="$(mktemp -d)"
 
 if [ -d "$NEXUS_WEB_DIR" ] && [ -f "$NEXUS_WEB_DIR/dist/server/index.js" ]; then
   echo -e "  -> Panel Nexus Web détecté, mise à jour en cours..."
-  rm -rf "$NTW_TMP"
   if git clone --depth 1 "$NEXUS_REPO_URL" "$NTW_TMP" >/dev/null 2>&1; then
     if [ -d "$NTW_TMP/nexus-web" ]; then
       cp -rf "$NTW_TMP/nexus-web"/. "$NEXUS_WEB_DIR/"

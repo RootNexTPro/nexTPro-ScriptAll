@@ -34,7 +34,10 @@ function effectiveDomain(data: AccountData, server: ServerConfig): string {
 }
 
 function b64(str: string): string {
-  return btoa(unescape(encodeURIComponent(str)));
+  const bytes = new TextEncoder().encode(str);
+  let binary = '';
+  bytes.forEach(b => { binary += String.fromCharCode(b); });
+  return btoa(binary);
 }
 
 function formatSSH(data: AccountData, server: ServerConfig): string {
@@ -225,7 +228,7 @@ function formatOpenVPN(data: AccountData, server: ServerConfig): string {
 ┃ OHP          : 8000
 ●${LINE}●
 ┃ Config File
-┃ Download     : ${server.openvpnDownload || `https://${domain}:2081`}
+┃ Download     : ${server.openvpnDownload || (domain ? `https://${domain}:2081` : 'N/A')}
 ┗${LINE}┛`;
 }
 

@@ -64,7 +64,7 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
     return;
   }
   const db = getDb();
-  const expiryDate = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d || new Date(Date.now() + days * 86400 * 1000).toISOString().split('T')[0];
+  const expiryDate = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d;
 
   const normalizedBouquet = Array.isArray(bouquet) ? bouquet : [];
   const seen = new Set<string>();
@@ -210,24 +210,17 @@ router.put('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
     const newExpiry = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d;
     updates.push('expiry_date = ?', 'max_credits = ?');
     params.push(newExpiry, days);
-    // If credits not explicitly set, also reset credits to new max
-    if (credits === undefined) {
-      updates.push('credits = ?');
-      params.push(days);
-    }
   }
 
-  if (credits !== undefined) {
-    const c = Number(credits);
-    if (!Number.isInteger(c) || c < 0) {
+  // credits is set independently or as reset when duration_days changes
+  const effectiveCredits = credits !== undefined ? Number(credits) : (duration_days !== undefined ? Number(duration_days) : undefined);
+  if (effectiveCredits !== undefined) {
+    if (!Number.isInteger(effectiveCredits) || effectiveCredits < 0) {
       res.status(400).json({ error: 'credits must be a non-negative integer' });
       return;
     }
-    // Remove duplicate credits push if already added above
-    if (!updates.includes('credits = ?')) {
-      updates.push('credits = ?');
-      params.push(c);
-    }
+    updates.push('credits = ?');
+    params.push(effectiveCredits);
   }
 
   if (password !== undefined) {
