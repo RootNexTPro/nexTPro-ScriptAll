@@ -5,6 +5,10 @@ interface AccountData {
   password: string;
   expiryDate: string;
   protocol: ProtocolType;
+  uuid?: string;
+  domain?: string;
+  host?: string;
+  [key: string]: unknown;
 }
 
 const LINE = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
@@ -12,10 +16,10 @@ const LINE = '━━━━━━━━━━━━━━━━━━━━━━
 export function formatConfig(data: AccountData, server: ServerConfig): string {
   switch (data.protocol) {
     case 'ssh': return formatSSH(data, server);
-    case 'vmess': return formatXray('VMESS', data, server);
-    case 'vless': return formatXray('VLESS', data, server);
-    case 'trojan': return formatXray('TROJAN', data, server);
-    case 'socks': return formatXray('SOCKS', data, server);
+    case 'vmess': return formatVMess(data, server);
+    case 'vless': return formatVLess(data, server);
+    case 'trojan': return formatTrojan(data, server);
+    case 'socks': return formatSocks(data, server);
     case 'openvpn': return formatOpenVPN(data, server);
     case 'slowdns': return formatSlowDNS(data, server);
     case 'udpcustom': return formatUDPCustom(data, server);
@@ -24,7 +28,18 @@ export function formatConfig(data: AccountData, server: ServerConfig): string {
   }
 }
 
+/** Priorité : domain depuis account_data > domain depuis settings > IP */
+function effectiveDomain(data: AccountData, server: ServerConfig): string {
+  return (data.domain as string) || server.domain || (data.host as string) || server.ip || '';
+}
+
+function b64(str: string): string {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
 function formatSSH(data: AccountData, server: ServerConfig): string {
+  const domain = effectiveDomain(data, server);
+  const ip = server.ip || (data.host as string) || '';
   return `┏${LINE}┓
 ┃               SSH ACCOUNT DETAILS                ┃
 ┗${LINE}┛
@@ -32,8 +47,8 @@ function formatSSH(data: AccountData, server: ServerConfig): string {
 ┃ Username    : ${data.username}
 ┃ Password    : ${data.password}
 ┃ Expiry Date : ${data.expiryDate}
-┃ Host/IP     : ${server.ip}
-┃ Domain      : ${server.domain}
+┃ Host/IP     : ${ip}
+┃ Domain      : ${domain}
 ┃ NS Domain   : ${server.nsDomain}
 ●${LINE}●
 ┃ OpenSSH      : 22
@@ -47,7 +62,7 @@ function formatSSH(data: AccountData, server: ServerConfig): string {
 ┃ Slow DNS     : 22,53,5300,80,443
 ●${LINE}●
 ┃ UDP Custom
-┃ ${server.domain}:1-65535@${data.username}:${data.password}
+┃ ${domain}:1-65535@${data.username}:${data.password}
 ●${LINE}●
 ┃ Slow DNS
 ┃ PUB : ${server.slowdnsPub}
@@ -56,34 +71,146 @@ function formatSSH(data: AccountData, server: ServerConfig): string {
 ┃ Download     : ${server.openvpnDownload}
 ●${LINE}●
 ┃ Payload
-┃ GET / HTTP/1.1[crlf]Host: ${server.domain}[crlf]Upgrade: websocket[crlf][crlf]
+┃ GET / HTTP/1.1[crlf]Host: ${domain}[crlf]Upgrade: websocket[crlf][crlf]
 ┗${LINE}┛`;
 }
 
-function formatXray(name: string, data: AccountData, server: ServerConfig): string {
-  const path = name === 'VMESS' ? '/vmess' : name === 'VLESS' ? '/vless' : name === 'TROJAN' ? '/trws' : '/ssws';
+function formatVLess(data: AccountData, server: ServerConfig): string {
+  const domain = effectiveDomain(data, server);
+  const uuid = (data.uuid as string) || data.password;
+  const user = data.username;
+
+  const linkTls  = `vless://${uuid}@${domain}:443?path=/vless&security=tls&encryption=none&type=ws#${user}`;
+  const linkNtls = `vless://${uuid}@${domain}:80?path=/vless&encryption=none&type=ws#${user}`;
+  const linkGrpc = `vless://${uuid}@${domain}:443?mode=gun&security=tls&encryption=none&type=grpc&serviceName=vless-grpc#${user}`;
+
   return `┏${LINE}┓
-┃            ${name} ACCOUNT DETAILS              ┃
+┃             VLESS ACCOUNT DETAILS               ┃
 ┗${LINE}┛
 ┏${LINE}┓
-┃ Remarks     : ${data.username}
-┃ Domain      : ${server.domain}
+┃ Remarks     : ${user}
+┃ Domain      : ${domain}
 ┃ Port TLS    : 443
 ┃ Port NTLS   : 80
-┃ UUID/Pass   : ${data.password}
-┃ Path        : ${path}
+┃ UUID        : ${uuid}
+┃ Path        : /vless
 ┃ Expiry Date : ${data.expiryDate}
 ●${LINE}●
 ┃ gRPC
-┃ Service Name: ${name.toLowerCase()}-grpc
+┃ Service Name: vless-grpc
 ┃ Port        : 443
 ●${LINE}●
-┃ Link
-┃ [Généré automatiquement]
+┃ 🔗 TLS (443):
+┃ ${linkTls}
+●${LINE}●
+┃ 🔗 NTLS (80):
+┃ ${linkNtls}
+●${LINE}●
+┃ 🔗 GRPC (443):
+┃ ${linkGrpc}
+┗${LINE}┛`;
+}
+
+function formatVMess(data: AccountData, server: ServerConfig): string {
+  const domain = effectiveDomain(data, server);
+  const uuid = (data.uuid as string) || data.password;
+  const user = data.username;
+
+  const wsTls  = JSON.stringify({ v: '2', ps: user, add: domain, port: '443', id: uuid, aid: '0', net: 'ws',   path: '/vmess',     type: 'none', host: '', tls: 'tls'  });
+  const wsNtls = JSON.stringify({ v: '2', ps: user, add: domain, port: '80',  id: uuid, aid: '0', net: 'ws',   path: '/vmess',     type: 'none', host: '', tls: 'none' });
+  const grpc   = JSON.stringify({ v: '2', ps: user, add: domain, port: '443', id: uuid, aid: '0', net: 'grpc', path: 'vmess-grpc', type: 'none', host: '', tls: 'tls'  });
+
+  const linkTls  = 'vmess://' + b64(wsTls);
+  const linkNtls = 'vmess://' + b64(wsNtls);
+  const linkGrpc = 'vmess://' + b64(grpc);
+
+  return `┏${LINE}┓
+┃             VMESS ACCOUNT DETAILS               ┃
+┗${LINE}┛
+┏${LINE}┓
+┃ Remarks     : ${user}
+┃ Domain      : ${domain}
+┃ Port TLS    : 443
+┃ Port NTLS   : 80
+┃ UUID        : ${uuid}
+┃ Path        : /vmess
+┃ Expiry Date : ${data.expiryDate}
+●${LINE}●
+┃ gRPC
+┃ Service Name: vmess-grpc
+┃ Port        : 443
+●${LINE}●
+┃ 🔗 TLS (443):
+┃ ${linkTls}
+●${LINE}●
+┃ 🔗 NTLS (80):
+┃ ${linkNtls}
+●${LINE}●
+┃ 🔗 GRPC (443):
+┃ ${linkGrpc}
+┗${LINE}┛`;
+}
+
+function formatTrojan(data: AccountData, server: ServerConfig): string {
+  const domain = effectiveDomain(data, server);
+  const password = data.password;
+  const user = data.username;
+
+  const linkTls  = `trojan://${password}@${domain}:443?path=/trws&security=tls&encryption=none&host=${domain}&type=ws#${user}`;
+  const linkNtls = `trojan://${password}@${domain}:80?path=/trws&encryption=none&security=none&host=${domain}&type=ws#${user}`;
+  const linkGrpc = `trojan://${password}@${domain}:443?mode=gun&security=tls&type=grpc&serviceName=trojan-grpc&sni=${domain}#${user}`;
+
+  return `┏${LINE}┓
+┃             TROJAN ACCOUNT DETAILS              ┃
+┗${LINE}┛
+┏${LINE}┓
+┃ Remarks     : ${user}
+┃ Domain      : ${domain}
+┃ Port TLS    : 443
+┃ Port NTLS   : 80
+┃ Password    : ${password}
+┃ Path        : /trws
+┃ Expiry Date : ${data.expiryDate}
+●${LINE}●
+┃ gRPC
+┃ Service Name: trojan-grpc
+┃ Port        : 443
+●${LINE}●
+┃ 🔗 TLS (443):
+┃ ${linkTls}
+●${LINE}●
+┃ 🔗 NTLS (80):
+┃ ${linkNtls}
+●${LINE}●
+┃ 🔗 GRPC (443):
+┃ ${linkGrpc}
+┗${LINE}┛`;
+}
+
+function formatSocks(data: AccountData, server: ServerConfig): string {
+  const domain = effectiveDomain(data, server);
+  const password = data.password;
+  const user = data.username;
+  const link = `socks5://${user}:${password}@${domain}:1080`;
+
+  return `┏${LINE}┓
+┃              SOCKS ACCOUNT DETAILS              ┃
+┗${LINE}┛
+┏${LINE}┓
+┃ Username    : ${user}
+┃ Password    : ${password}
+┃ Expiry Date : ${data.expiryDate}
+┃ Domain      : ${domain}
+┃ Port        : 1080
+●${LINE}●
+┃ 🔗 SOCKS5:
+┃ ${link}
 ┗${LINE}┛`;
 }
 
 function formatOpenVPN(data: AccountData, server: ServerConfig): string {
+  const domain = effectiveDomain(data, server);
+  const ip = server.ip || (data.host as string) || '';
   return `┏${LINE}┓
 ┃           OPENVPN ACCOUNT DETAILS              ┃
 ┗${LINE}┛
@@ -91,14 +218,14 @@ function formatOpenVPN(data: AccountData, server: ServerConfig): string {
 ┃ Username    : ${data.username}
 ┃ Password    : ${data.password}
 ┃ Expiry Date : ${data.expiryDate}
-┃ Host/IP     : ${server.ip}
+┃ Host/IP     : ${ip}
 ●${LINE}●
 ┃ OpenVPN TCP  : 1194
 ┃ OpenVPN SSL  : 2200
 ┃ OHP          : 8000
 ●${LINE}●
 ┃ Config File
-┃ Download     : ${server.openvpnDownload}
+┃ Download     : ${server.openvpnDownload || `https://${domain}:2081`}
 ┗${LINE}┛`;
 }
 
@@ -118,6 +245,7 @@ function formatSlowDNS(data: AccountData, server: ServerConfig): string {
 }
 
 function formatUDPCustom(data: AccountData, server: ServerConfig): string {
+  const domain = effectiveDomain(data, server);
   return `┏${LINE}┓
 ┃          UDP CUSTOM ACCOUNT DETAILS            ┃
 ┗${LINE}┛
@@ -127,11 +255,12 @@ function formatUDPCustom(data: AccountData, server: ServerConfig): string {
 ┃ Expiry Date : ${data.expiryDate}
 ●${LINE}●
 ┃ Auth String
-┃ ${server.domain}:1-65535@${data.username}:${data.password}
+┃ ${domain}:1-65535@${data.username}:${data.password}
 ┗${LINE}┛`;
 }
 
 function formatZipVPN(data: AccountData, server: ServerConfig): string {
+  const domain = effectiveDomain(data, server);
   return `┏${LINE}┓
 ┃            ZIPVPN ACCOUNT DETAILS               ┃
 ┗${LINE}┛
@@ -139,7 +268,7 @@ function formatZipVPN(data: AccountData, server: ServerConfig): string {
 ┃ Username    : ${data.username}
 ┃ Password    : ${data.password}
 ┃ Expiry Date : ${data.expiryDate}
-┃ Domain      : ${server.domain}
+┃ Domain      : ${domain}
 ●${LINE}●
 ┃ Protocol    : ZIPVPN
 ┃ Notes       : Utilisez les identifiants dans l'application ZipVPN

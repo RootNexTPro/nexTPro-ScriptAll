@@ -21,8 +21,37 @@ for script in "${MODULES[@]}"; do
 done
 
 echo -e "\n${LN}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${NC}"
-echo -e "${LN}┃${NC} ${GR}      CORRECTIF SSH PORT 8181 (Stunnel TLS)       ${NC}${LN}┃${NC}"
+echo -e "${LN}┃${NC} ${GR}         MISE À JOUR NEXUS TUNNEL WEB            ${NC}${LN}┃${NC}"
 echo -e "${LN}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${NC}"
+
+NEXUS_WEB_DIR="/opt/nexus-tunnel-web"
+NEXUS_REPO_URL="https://github.com/naomierachel031-lab/Clone-script-all-buddy.git"
+NTW_TMP="/tmp/nexus-web-ota-$$"
+
+if [ -d "$NEXUS_WEB_DIR" ] && [ -f "$NEXUS_WEB_DIR/dist/server/index.js" ]; then
+  echo -e "  -> Panel Nexus Web détecté, mise à jour en cours..."
+  rm -rf "$NTW_TMP"
+  if git clone --depth 1 "$NEXUS_REPO_URL" "$NTW_TMP" >/dev/null 2>&1; then
+    if [ -d "$NTW_TMP/nexus-web" ]; then
+      cp -rf "$NTW_TMP/nexus-web"/. "$NEXUS_WEB_DIR/"
+      sed -i "s|const PUBLIC_DIR = .*|const PUBLIC_DIR = '/opt/nexus-tunnel-web/public';|g" \
+          "$NEXUS_WEB_DIR/server/index.ts" 2>/dev/null || true
+      sed -i 's/callback(null, false);/callback(null, true);/g' \
+          "$NEXUS_WEB_DIR/server/index.ts" 2>/dev/null || true
+      if [ -d "$NEXUS_WEB_DIR/frontend" ]; then
+        cd "$NEXUS_WEB_DIR/frontend" && npm install --quiet >/dev/null 2>&1 && npm run build >/dev/null 2>&1
+      fi
+      cd "$NEXUS_WEB_DIR" && npm install --production=false --quiet >/dev/null 2>&1 && npm run build >/dev/null 2>&1
+      systemctl restart nexus-web 2>/dev/null || true
+      echo -e "  -> Nexus Tunnel Web [OK]"
+    fi
+    rm -rf "$NTW_TMP"
+  else
+    echo -e "  -> ${RD}[WARN] Impossible de mettre à jour Nexus Web (pas de connexion GitHub)${NC}"
+  fi
+else
+  echo -e "  -> Nexus Tunnel Web non installé, ignoré."
+fi
 
 echo -e "\n ${GR}[+] Mise à jour OTA terminée avec succès !${NC}"
 sleep 2

@@ -51,8 +51,10 @@ export default function ResellerCreateAccount() {
         if (s?.server) Object.assign(serverSettings, s.server);
       } catch {}
 
-      const expiry = new Date(Date.now() + days * 86400000);
-      const expiryStr = expiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      // Use server-returned expiry date to prevent client clock manipulation
+      const expiryStr = result.expires_at
+        ? new Date(result.expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : new Date(Date.now() + days * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
       const config = formatConfig(
         { username, password, expiryDate: expiryStr, protocol: selectedProtocol, ...result.account_data },

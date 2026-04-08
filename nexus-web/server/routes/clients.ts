@@ -35,8 +35,9 @@ function getResellerState(adminId: string): {
   maxCredits: number;
 } | null {
   const db = getDb();
+  // Also enforce reseller expiry_date on the server side so changing client time has no effect
   const row = db.prepare(
-    "SELECT bouquet, credits, max_credits FROM admins WHERE id = ? AND role = 'reseller' AND status = 'active'"
+    "SELECT bouquet, credits, max_credits FROM admins WHERE id = ? AND role = 'reseller' AND status = 'active' AND (expiry_date IS NULL OR expiry_date >= date('now'))"
   ).get(adminId) as { bouquet?: string; credits?: number; max_credits?: number } | undefined;
 
   if (!row) return null;
@@ -202,7 +203,7 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
     return;
   }
 
-  const expiresAt = new Date(Date.now() + days * 86400 * 1000).toISOString().split('T')[0];
+  const expiresAt = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d || new Date(Date.now() + days * 86400 * 1000).toISOString().split('T')[0];
   const id = uuidv4();
 
   try {
@@ -322,7 +323,7 @@ router.post('/:id/renew', requireAuth, (req: AuthRequest, res: Response): void =
     return;
   }
 
-  const newExpiry = new Date(Date.now() + days * 86400 * 1000).toISOString().split('T')[0];
+  const newExpiry = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d || new Date(Date.now() + days * 86400 * 1000).toISOString().split('T')[0];
   db.prepare("UPDATE clients SET expires_at = ?, status = 'active', updated_at = datetime('now') WHERE id = ?")
     .run(newExpiry, req.params.id);
 
