@@ -1,15 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { Search, Trash2, RefreshCw } from 'lucide-react';
+import { formatConfig } from '@/lib/config-formatter';
+import ConfigOutput from '@/components/ConfigOutput';
+import { Search, Trash2, RefreshCw, Eye, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ProtocolType } from '@/lib/types';
 
 interface Client {
   id: string;
   username: string;
+  password: string;
   protocol: string;
   expires_at: string;
   status: string;
   created_at: string;
+  extra_data?: Record<string, unknown>;
 }
 
 export default function ResellerAccounts() {
@@ -17,6 +22,15 @@ export default function ResellerAccounts() {
   const [loadingList, setLoadingList] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [renewingId, setRenewingId] = useState<string | null>(null);
+
+  // Detail modal
+  const [detailClient, setDetailClient] = useState<Client | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [renewDays, setRenewDays] = useState('30');
+  const [renewLoading, setRenewLoading] = useState(false);
+  const [renewError, setRenewError] = useState('');
+  const [configText, setConfigText] = useState('');
+  const [configLoading, setConfigLoading] = useState(false);
 
   const loadAccounts = useCallback(async () => {
     setLoadingList(true);
@@ -33,6 +47,7 @@ export default function ResellerAccounts() {
     try {
       await api.deleteClient(id);
       await loadAccounts();
+      if (detailClient?.id === id) setDetailClient(null);
     } catch {}
   };
 
@@ -45,10 +60,60 @@ export default function ResellerAccounts() {
     setRenewingId(null);
   };
 
+  const openDetail = async (id: string) => {
+    setDetailLoading(true);
+    setDetailClient(null);
+    setConfigText('');
+    setRenewError('');
+    setRenewDays('30');
+    try {
+      const data = await api.getClient(id);
+      setDetailClient(data);
+      // Build config from extra_data
+      setConfigLoading(true);
+      try {
+        const serverSettings = { ip: '', domain: '', nsDomain: '', slowdnsPub: '', openvpnDownload: '' };
+        try {
+          const s = await api.getSettings();
+          if (s?.server) Object.assign(serverSettings, s.server);
+        } catch {}
+        const extra = typeof data.extra_data === 'object' && data.extra_data ? data.extra_data : {};
+        const expiryStr = data.expires_at
+          ? new Date(data.expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          : data.expires_at;
+        const config = formatConfig(
+          { username: data.username, password: data.password, expiryDate: expiryStr, protocol: data.protocol as ProtocolType, ...extra },
+          serverSettings,
+        );
+        setConfigText(config);
+      } catch {}
+      setConfigLoading(false);
+    } catch {}
+    setDetailLoading(false);
+  };
+
+  const handleDetailRenew = async () => {
+    if (!detailClient) return;
+    const days = parseInt(renewDays) || 30;
+    if (days < 1) { setRenewError('Durée invalide'); return; }
+    setRenewLoading(true);
+    setRenewError('');
+    try {
+      const result = await api.renewClient(detailClient.id, days);
+      await loadAccounts();
+      setDetailClient(prev => prev ? { ...prev, expires_at: result.expires_at || prev.expires_at } : null);
+    } catch (e: any) {
+      setRenewError(e.message || 'Erreur lors du renouvellement');
+    }
+    setRenewLoading(false);
+  };
+
   const filtered = accounts.filter(a =>
     a.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Display status: account is active if both the status field is active AND the expiry date has not passed.
+  // Note: security-critical expiry enforcement is server-side; this is display-only.
   const isActive = (client: Client) =>
     client.status === 'active' && new Date(client.expires_at) > new Date();
 
@@ -72,11 +137,12 @@ export default function ResellerAccounts() {
       </div>
 
       <div className="glass-card overflow-hidden">
-        <div className="grid grid-cols-5 gap-4 p-4 border-b border-border text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">
+        <div className="grid grid-cols-6 gap-4 p-4 border-b border-border text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">
           <span>Utilisateur</span>
           <span>Protocole</span>
           <span>Expiration</span>
           <span>Statut</span>
+          <span>Créé le</span>
           <span className="text-right">Actions</span>
         </div>
         {loadingList ? (
@@ -90,7 +156,7 @@ export default function ResellerAccounts() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="grid grid-cols-5 gap-4 p-4 border-b border-border last:border-0 hover:bg-secondary/20 transition-all items-center"
+                className="grid grid-cols-6 gap-4 p-4 border-b border-border last:border-0 hover:bg-secondary/20 transition-all items-center"
               >
                 <span className="text-sm font-mono text-foreground font-semibold">{acc.username}</span>
                 <span className="protocol-badge border-primary/30 text-primary bg-primary/10 w-fit">
@@ -100,7 +166,15 @@ export default function ResellerAccounts() {
                 <span className={`protocol-badge w-fit ${isActive(acc) ? 'border-success/30 text-success bg-success/10' : 'border-destructive/30 text-destructive bg-destructive/10'}`}>
                   {isActive(acc) ? 'Actif' : 'Expiré'}
                 </span>
+                <span className="text-sm font-mono text-muted-foreground">{acc.created_at?.split('T')[0]}</span>
                 <div className="flex items-center justify-end gap-1">
+                  <button
+                    onClick={() => openDetail(acc.id)}
+                    className="p-2 rounded-lg hover:bg-accent/10 text-accent transition-colors"
+                    title="Voir les détails"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={() => handleRenew(acc.id)}
                     disabled={renewingId === acc.id}
@@ -125,6 +199,109 @@ export default function ResellerAccounts() {
           <div className="p-8 text-center text-muted-foreground">Aucun compte trouvé</div>
         )}
       </div>
+
+      {/* Detail Modal */}
+      <AnimatePresence>
+        {(detailLoading || detailClient) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            onClick={e => { if (e.target === e.currentTarget) setDetailClient(null); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="glass-card w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 relative"
+            >
+              <button
+                onClick={() => setDetailClient(null)}
+                className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-secondary/50 text-muted-foreground"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              {detailLoading ? (
+                <div className="py-12 text-center text-muted-foreground">Chargement...</div>
+              ) : detailClient && (
+                <div className="space-y-5">
+                  <h2 className="text-xl font-display font-bold text-gradient-primary">
+                    Détails du compte — {detailClient.username}
+                  </h2>
+
+                  {/* Info grid */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'Protocole', value: detailClient.protocol?.toUpperCase() },
+                      { label: 'Statut',    value: isActive(detailClient) ? '✅ Actif' : '❌ Expiré' },
+                      { label: 'Expiration', value: detailClient.expires_at },
+                      { label: 'Créé le',   value: detailClient.created_at?.split('T')[0] },
+                    ].map(item => (
+                      <div key={item.label} className="bg-secondary/20 rounded-lg p-3">
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">{item.label}</p>
+                        <p className="text-sm font-mono text-foreground font-semibold">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Renew */}
+                  <div className="border border-border rounded-xl p-4 space-y-3">
+                    <h3 className="text-sm font-display font-semibold text-foreground">🔁 Renouveler le compte</h3>
+                    {renewError && (
+                      <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded px-3 py-2">{renewError}</p>
+                    )}
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <select
+                          value={renewDays}
+                          onChange={e => setRenewDays(e.target.value)}
+                          className="input-dark w-full"
+                        >
+                          <option value="1">1 Jour</option>
+                          <option value="7">7 Jours</option>
+                          <option value="30">30 Jours</option>
+                          <option value="60">60 Jours</option>
+                          <option value="90">90 Jours</option>
+                          <option value="180">180 Jours</option>
+                          <option value="360">360 Jours</option>
+                        </select>
+                      </div>
+                      <button
+                        onClick={handleDetailRenew}
+                        disabled={renewLoading}
+                        className="btn-primary flex items-center gap-2"
+                      >
+                        {renewLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                        Renouveler
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Config */}
+                  {configLoading ? (
+                    <div className="text-center text-muted-foreground text-sm py-4">Génération de la config...</div>
+                  ) : configText ? (
+                    <ConfigOutput config={configText} protocol={detailClient.protocol as ProtocolType} />
+                  ) : null}
+
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button
+                      onClick={() => { handleDelete(detailClient.id); setDetailClient(null); }}
+                      className="btn-ghost text-destructive hover:bg-destructive/10 flex items-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Supprimer le compte
+                    </button>
+                    <button onClick={() => setDetailClient(null)} className="btn-ghost">Fermer</button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -798,7 +798,8 @@ function ntw_update() {
   echo -e "${LN}┃${NC} ${BG}          MISE À JOUR NEXUS TUNNEL WEB           ${NC} ${LN}┃${NC}"
   echo -e "${LN}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${NC}"
   echo ""
-  echo -e "  Cette option va réinstaller le panel en conservant la configuration."
+  echo -e "  Cette option télécharge la dernière version depuis GitHub"
+  echo -e "  et redéploie le panel en conservant vos données (DB, config)."
   read -rp "  Continuer? (oui/non) : " confirm
 
   if [[ "$confirm" != "oui" ]]; then
@@ -808,20 +809,57 @@ function ntw_update() {
     return
   fi
 
-  local src_dir
-  if src_dir="$(resolve_web_source_dir)"; then
-    log_info "Copying updated sources..."
-    cp -r "$src_dir"/* "$NEXUS_WEB_DIR/"
-    cd "$NEXUS_WEB_DIR"
-    npm install --production=false --quiet 2>&1 | tail -5
-    npm run build 2>&1 | tail -10
-    systemctl restart "$SERVICE"
-    echo -e "  ${GR}[OK] Mise à jour terminée!${NC}"
-  else
-    echo -e "  ${RD}[ERROR] Répertoire source introuvable ou inaccessible.${NC}"
+  # Pour la mise à jour on clone TOUJOURS depuis GitHub afin d'avoir
+  # la vraie dernière version, pas la copie locale déjà installée.
+  local tmp_src
+  tmp_src="$(mktemp -d)"
+
+  log_info "Téléchargement de la dernière version depuis GitHub..."
+  if ! git clone --depth 1 "$NEXUS_REPO_URL" "$tmp_src" 2>&1 | tail -5; then
+    echo -e "  ${RD}[ERROR] Impossible de cloner depuis GitHub. Vérifiez votre connexion.${NC}"
+    rm -rf "$tmp_src"
+    wait_key
+    nexus_web_menu
+    return
   fi
 
-  rm -rf "$TMP_WEB_SRC" 2>/dev/null || true
+  local src_dir="$tmp_src/nexus-web"
+  if [ ! -d "$src_dir" ] || [ ! -f "$src_dir/install.sh" ]; then
+    echo -e "  ${RD}[ERROR] Dossier nexus-web introuvable dans le dépôt cloné.${NC}"
+    rm -rf "$tmp_src"
+    wait_key
+    nexus_web_menu
+    return
+  fi
+
+  log_info "Copie des nouveaux fichiers dans $NEXUS_WEB_DIR..."
+  cp -rf "$src_dir"/. "$NEXUS_WEB_DIR/"
+
+  # Ré-application du correctif ancrage absolu PUBLIC_DIR et CORS
+  log_info "Application des correctifs (PUBLIC_DIR, CORS)..."
+  sed -i "s|const PUBLIC_DIR = .*|const PUBLIC_DIR = '/opt/nexus-tunnel-web/public';|g" \
+      "$NEXUS_WEB_DIR/server/index.ts" 2>/dev/null || true
+  sed -i 's/callback(null, false);/callback(null, true);/g' \
+      "$NEXUS_WEB_DIR/server/index.ts" 2>/dev/null || true
+
+  log_info "Compilation de l'interface graphique (frontend)..."
+  if [ -d "$NEXUS_WEB_DIR/frontend" ]; then
+    cd "$NEXUS_WEB_DIR/frontend"
+    npm install --quiet 2>&1 | tail -3
+    npm run build 2>&1 | tail -8
+  fi
+
+  log_info "Compilation du serveur Node.js..."
+  cd "$NEXUS_WEB_DIR"
+  npm install --production=false --quiet 2>&1 | tail -3
+  npm run build 2>&1 | tail -5
+
+  log_info "Nettoyage et redémarrage du service..."
+  rm -rf "$tmp_src"
+  systemctl restart "$SERVICE"
+  sleep 2
+
+  echo -e "  ${GR}[OK] Mise à jour terminée ! Le panel est maintenant à jour.${NC}"
   wait_key
   nexus_web_menu
 }

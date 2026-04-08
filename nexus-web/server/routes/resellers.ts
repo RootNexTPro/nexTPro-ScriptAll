@@ -63,7 +63,8 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
     res.status(400).json({ error: 'duration_days must be between 1 and 3650' });
     return;
   }
-  const expiryDate = new Date(Date.now() + days * 86400 * 1000).toISOString().split('T')[0];
+  const db = getDb();
+  const expiryDate = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d;
 
   const normalizedBouquet = Array.isArray(bouquet) ? bouquet : [];
   const seen = new Set<string>();
@@ -85,7 +86,6 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
     seen.add(proto);
   }
 
-  const db = getDb();
   const exists = db.prepare('SELECT id FROM admins WHERE username = ?').get(username);
   if (exists) {
     res.status(409).json({ error: 'Username already exists' });
@@ -156,6 +156,103 @@ router.post('/:id/activate', requireAuth, (req: AuthRequest, res: Response): voi
   db.prepare("UPDATE admins SET status = 'active', updated_at = datetime('now') WHERE id = ?").run(req.params.id);
   logAction(admin.id, admin.username, 'ACTIVATE_RESELLER', 'reseller', req.params.id, {}, req.ip || null);
   res.json({ message: 'Reseller activated' });
+});
+
+// PUT /api/resellers/:id — update reseller bouquet, credits and/or expiry (admin or super_admin)
+router.put('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
+  const admin = req.admin!;
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const { bouquet, duration_days, credits, password } = req.body as {
+    bouquet?: Array<{ protocolId: string; maxAccounts: number }>;
+    duration_days?: number;
+    credits?: number;
+    password?: string;
+  };
+
+  const db = getDb();
+  const target = db.prepare(
+    "SELECT id, username FROM admins WHERE id = ? AND role = 'reseller'"
+  ).get(req.params.id) as { id: string; username: string } | undefined;
+
+  if (!target) {
+    res.status(404).json({ error: 'Reseller not found' });
+    return;
+  }
+
+  const updates: string[] = [];
+  const params: unknown[] = [];
+
+  if (Array.isArray(bouquet)) {
+    const seen = new Set<string>();
+    const normalized = bouquet.map((b) => {
+      const proto = normalizeProtocol(String(b?.protocolId || ''));
+      const maxAccounts = Number(b?.maxAccounts || 0);
+      if (!ALLOWED_PROTOCOLS.has(proto)) throw new Error(`Invalid protocol: ${proto}`);
+      if (!Number.isInteger(maxAccounts) || maxAccounts < 1 || maxAccounts > 100000) throw new Error(`Invalid maxAccounts for ${proto}`);
+      if (seen.has(proto)) throw new Error(`Duplicate protocol: ${proto}`);
+      seen.add(proto);
+      return { protocolId: proto, maxAccounts };
+    });
+    updates.push('bouquet = ?');
+    params.push(JSON.stringify(normalized));
+  }
+
+  if (duration_days !== undefined) {
+    const days = Number(duration_days);
+    if (!Number.isInteger(days) || days < 1 || days > 3650) {
+      res.status(400).json({ error: 'duration_days must be between 1 and 3650' });
+      return;
+    }
+    const newExpiry = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d;
+    updates.push('expiry_date = ?', 'max_credits = ?');
+    params.push(newExpiry, days);
+  }
+
+  // credits is set independently or as reset when duration_days changes
+  const effectiveCredits = credits !== undefined ? Number(credits) : (duration_days !== undefined ? Number(duration_days) : undefined);
+  if (effectiveCredits !== undefined) {
+    if (!Number.isInteger(effectiveCredits) || effectiveCredits < 0) {
+      res.status(400).json({ error: 'credits must be a non-negative integer' });
+      return;
+    }
+    updates.push('credits = ?');
+    params.push(effectiveCredits);
+  }
+
+  if (password !== undefined) {
+    if (password.length < 6) {
+      res.status(400).json({ error: 'Password must be at least 6 characters' });
+      return;
+    }
+    updates.push('password_hash = ?');
+    params.push(bcrypt.hashSync(password, 12));
+  }
+
+  if (updates.length === 0) {
+    res.status(400).json({ error: 'No fields to update' });
+    return;
+  }
+
+  updates.push("updated_at = datetime('now')");
+  params.push(req.params.id);
+
+  try {
+    db.prepare(`UPDATE admins SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message || 'Update failed' });
+    return;
+  }
+
+  logAction(admin.id, admin.username, 'UPDATE_RESELLER', 'reseller', req.params.id, {}, req.ip || null);
+
+  const updated = db.prepare(
+    'SELECT id, username, role, status, bouquet, expiry_date, credits, max_credits FROM admins WHERE id = ?'
+  ).get(req.params.id);
+  res.json(updated);
 });
 
 // DELETE /api/resellers/:id

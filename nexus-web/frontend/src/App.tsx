@@ -49,6 +49,8 @@ function AppRoutes() {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/resellers" element={<AdminResellers />} />
         <Route path="/admin/admins" element={<AdminAdmins />} />
+        <Route path="/admin/create" element={<ResellerCreateAccount />} />
+        <Route path="/admin/accounts" element={<ResellerAccounts />} />
         <Route path="/admin/protocols" element={<AdminProtocols />} />
         <Route path="/admin/server" element={<AdminServer />} />
         <Route path="/admin/appearance" element={<AdminAppearance />} />

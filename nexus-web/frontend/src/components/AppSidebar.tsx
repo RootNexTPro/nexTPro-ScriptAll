@@ -10,6 +10,8 @@ const adminLinks = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/admin/resellers', icon: Users, label: 'Revendeurs' },
   { to: '/admin/admins', icon: Crown, label: 'Administrateurs' },
+  { to: '/admin/create', icon: UserPlus, label: 'Créer un Compte' },
+  { to: '/admin/accounts', icon: CreditCard, label: 'Tous les Comptes' },
   { to: '/admin/protocols', icon: Zap, label: 'Protocoles' },
   { to: '/admin/server', icon: Server, label: 'Serveur' },
   { to: '/admin/appearance', icon: Palette, label: 'Apparence' },

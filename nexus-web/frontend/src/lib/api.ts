@@ -81,6 +81,8 @@ export const api = {
 
   suspendReseller: (id: string) => apiRequest<any>('POST', `/resellers/${id}/suspend`),
   activateReseller: (id: string) => apiRequest<any>('POST', `/resellers/${id}/activate`),
+  updateReseller: (id: string, data: { bouquet?: any[]; duration_days?: number; credits?: number; password?: string }) =>
+    apiRequest<any>('PUT', `/resellers/${id}`, data),
   deleteReseller: (id: string) => apiRequest<any>('DELETE', `/resellers/${id}`),
 
   // Clients (VPN accounts)
@@ -97,6 +99,8 @@ export const api = {
   },
 
   createClient: (data: any) => apiRequest<any>('POST', '/clients', data),
+
+  getClient: (id: string) => apiRequest<any>('GET', `/clients/${id}`),
 
   renewClient: (id: string, days: number) =>
     apiRequest<any>('POST', `/clients/${id}/renew`, { days }),
