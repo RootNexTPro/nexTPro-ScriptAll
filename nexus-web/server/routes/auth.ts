@@ -31,6 +31,17 @@ router.post('/login', (req: AuthRequest, res: Response): void => {
     return;
   }
 
+  // For resellers: also check server-side expiry (date manipulation protection)
+  if (admin.role === 'reseller') {
+    const expired = db.prepare(
+      "SELECT expiry_date IS NOT NULL AND expiry_date < date('now') as is_exp FROM admins WHERE id = ?"
+    ).get(admin.id) as { is_exp: number } | undefined;
+    if (expired?.is_exp) {
+      res.status(403).json({ error: 'Compte revendeur expiré' });
+      return;
+    }
+  }
+
   const expiresAt = new Date(Date.now() + SESSION_HOURS * 3600 * 1000);
   const token = jwt.sign(
     { id: admin.id, username: admin.username, role: admin.role },
@@ -66,15 +77,33 @@ router.post('/logout', requireAuth, (req: AuthRequest, res: Response): void => {
 router.get('/me', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDb();
   const admin = db.prepare(
-    'SELECT id, username, role, status, bouquet, expiry_date, credits, max_credits FROM admins WHERE id = ?'
+    'SELECT id, username, role, status, bouquet, expiry_date FROM admins WHERE id = ?'
   ).get(req.admin!.id) as {
     id: string; username: string; role: string; status: string;
-    bouquet?: string; expiry_date?: string; credits?: number; max_credits?: number;
+    bouquet?: string; expiry_date?: string;
   } | undefined;
 
   if (!admin) {
     res.status(404).json({ error: 'Admin not found' });
     return;
+  }
+
+  // For resellers: enforce server-side expiry (in case scheduler hasn't run yet)
+  if (admin.role === 'reseller' && admin.expiry_date) {
+    const expired = (db.prepare("SELECT expiry_date < date('now') as is_exp FROM admins WHERE id = ?").get(admin.id) as { is_exp: number }).is_exp;
+    if (expired) {
+      res.status(403).json({ error: 'Account suspended' });
+      return;
+    }
+  }
+
+  // Calculate remaining days from server time
+  let remainingDays: number | null = null;
+  if (admin.expiry_date) {
+    const row = db.prepare(
+      "SELECT CAST(JULIANDAY(?) - JULIANDAY(date('now')) AS INTEGER) as days"
+    ).get(admin.expiry_date) as { days: number };
+    remainingDays = Math.max(0, row.days);
   }
 
   let bouquet: unknown = admin.bouquet;
@@ -102,8 +131,7 @@ router.get('/me', requireAuth, (req: AuthRequest, res: Response): void => {
       status: admin.status,
       bouquet,
       expiry_date: admin.expiry_date,
-      credits: admin.credits,
-      max_credits: admin.max_credits,
+      remaining_days: remainingDays,
     },
   });
 });

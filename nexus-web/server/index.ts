@@ -11,6 +11,7 @@ import plansRouter from './routes/plans';
 import logsRouter from './routes/logs';
 import resellersRouter from './routes/resellers';
 import settingsRouter from './routes/settings';
+import { suspendSshAccount, deleteSshAccount } from './scripts';
 
 // ─── Load configuration ────────────────────────────────────────────────────────
 const CONFIG_FILE = process.env.NEXUS_CONFIG || '/etc/nexus-tunnel-web/config.json';
@@ -47,6 +48,77 @@ const adminPass = config.admin_password || process.env.NEXUS_ADMIN_PASS || 'admi
 // Initialize DB and seed super admin
 getDb();
 seedSuperAdmin(adminUser, adminPass);
+
+// ─── Expiry scheduler ─────────────────────────────────────────────────────────
+// Uses server-side SQLite time (date('now') / datetime('now')) exclusively,
+// so client date/time manipulation has no effect on expiry enforcement.
+const SSH_PROTOCOLS = new Set(['ssh', 'slowdns', 'udpcustom']);
+
+function runExpiryScheduler(): void {
+  try {
+    const db = getDb();
+
+    // 1. Suspend active resellers whose expiry_date has passed (server time)
+    const expiredResellers = db.prepare(
+      "SELECT id, username FROM admins WHERE role = 'reseller' AND status = 'active' AND expiry_date IS NOT NULL AND expiry_date < date('now')"
+    ).all() as { id: string; username: string }[];
+
+    for (const reseller of expiredResellers) {
+      // Mark reseller as suspended and record suspension timestamp
+      db.prepare(
+        "UPDATE admins SET status = 'suspended', suspended_at = datetime('now'), updated_at = datetime('now') WHERE id = ?"
+      ).run(reseller.id);
+
+      // Invalidate all active sessions for this reseller
+      db.prepare('DELETE FROM sessions WHERE admin_id = ?').run(reseller.id);
+
+      // Suspend all active clients created by this reseller
+      const clients = db.prepare(
+        "SELECT id, username, protocol FROM clients WHERE created_by = ? AND status = 'active'"
+      ).all(reseller.id) as { id: string; username: string; protocol: string }[];
+
+      for (const client of clients) {
+        if (SSH_PROTOCOLS.has(client.protocol)) {
+          try { suspendSshAccount(client.username); } catch {}
+        }
+        db.prepare(
+          "UPDATE clients SET status = 'suspended', updated_at = datetime('now') WHERE id = ?"
+        ).run(client.id);
+      }
+
+      console.log(`[SCHEDULER] Reseller '${reseller.username}' expired — suspended along with ${clients.length} client(s)`);
+    }
+
+    // 2. Delete resellers that have been suspended for more than 24 hours
+    const toDelete = db.prepare(
+      "SELECT id, username FROM admins WHERE role = 'reseller' AND status = 'suspended' AND suspended_at IS NOT NULL AND suspended_at <= datetime('now', '-24 hours')"
+    ).all() as { id: string; username: string }[];
+
+    for (const reseller of toDelete) {
+      const clients = db.prepare(
+        'SELECT id, username, protocol FROM clients WHERE created_by = ?'
+      ).all(reseller.id) as { id: string; username: string; protocol: string }[];
+
+      for (const client of clients) {
+        if (SSH_PROTOCOLS.has(client.protocol)) {
+          try { deleteSshAccount(client.username); } catch {}
+        }
+      }
+
+      db.prepare('DELETE FROM clients WHERE created_by = ?').run(reseller.id);
+      db.prepare('DELETE FROM sessions WHERE admin_id = ?').run(reseller.id);
+      db.prepare('DELETE FROM admins WHERE id = ?').run(reseller.id);
+
+      console.log(`[SCHEDULER] Reseller '${reseller.username}' auto-deleted after 24 h suspension (${clients.length} client(s) removed)`);
+    }
+  } catch (err) {
+    console.error('[SCHEDULER] Error during expiry check:', err);
+  }
+}
+
+// Run immediately on start, then every 60 seconds
+runExpiryScheduler();
+setInterval(runExpiryScheduler, 60 * 1000);
 
 // ─── Express app ──────────────────────────────────────────────────────────────
 const app = express();
@@ -105,6 +177,13 @@ app.use('/api/settings', apiLimiter, settingsRouter);
 // Health check
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', service: 'nexus-tunnel-web', version: '1.0.0' });
+});
+
+// Server time endpoint — clients must use this to validate their clock
+app.get('/api/server-time', apiLimiter, (_req, res) => {
+  const db = getDb();
+  const row = db.prepare("SELECT strftime('%s', 'now') as unix_ts, datetime('now') as iso").get() as { unix_ts: string; iso: string };
+  res.json({ unix: Number(row.unix_ts), iso: row.iso });
 });
 
 // SPA fallback — serve index.html for non-API routes

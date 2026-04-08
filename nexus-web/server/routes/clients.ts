@@ -31,14 +31,13 @@ function normalizeProtocol(protocol: string): string {
 
 function getResellerState(adminId: string): {
   bouquet: BouquetItem[];
-  credits: number;
-  maxCredits: number;
+  remainingDays: number;
 } | null {
   const db = getDb();
-  // Also enforce reseller expiry_date on the server side so changing client time has no effect
+  // Enforce reseller expiry_date on the server side so changing client time has no effect
   const row = db.prepare(
-    "SELECT bouquet, credits, max_credits FROM admins WHERE id = ? AND role = 'reseller' AND status = 'active' AND (expiry_date IS NULL OR expiry_date >= date('now'))"
-  ).get(adminId) as { bouquet?: string; credits?: number; max_credits?: number } | undefined;
+    "SELECT bouquet, expiry_date FROM admins WHERE id = ? AND role = 'reseller' AND status = 'active' AND (expiry_date IS NULL OR expiry_date >= date('now'))"
+  ).get(adminId) as { bouquet?: string; expiry_date?: string } | undefined;
 
   if (!row) return null;
   let bouquet: BouquetItem[] = [];
@@ -47,10 +46,19 @@ function getResellerState(adminId: string): {
   } catch {
     bouquet = [];
   }
+
+  // Calculate remaining days from server-side expiry date
+  let remainingDays = 9999; // unlimited if no expiry
+  if (row.expiry_date) {
+    const result = db.prepare(
+      "SELECT CAST(JULIANDAY(?) - JULIANDAY(date('now')) AS INTEGER) as days"
+    ).get(row.expiry_date) as { days: number };
+    remainingDays = Math.max(0, result.days);
+  }
+
   return {
     bouquet: Array.isArray(bouquet) ? bouquet : [],
-    credits: Number(row.credits || 0),
-    maxCredits: Number(row.max_credits || 0),
+    remainingDays,
   };
 }
 
@@ -69,32 +77,14 @@ function canResellerUseProtocol(adminId: string, protocol: string): { ok: boolea
     (db.prepare('SELECT COUNT(*) as c FROM clients WHERE created_by = ? AND protocol = ?').get(adminId, protocol) as { c: number }).c
   );
   if (used >= maxAccounts) {
-    return { ok: false, error: `Quota reached for protocol '${protocol}' (${used}/${maxAccounts})` };
+    return { ok: false, error: `Quota atteint pour le protocole '${protocol}' (${used}/${maxAccounts})` };
   }
   return { ok: true };
 }
 
-function ensureResellerCredits(adminId: string, days: number): { ok: boolean; error?: string } {
-  const db = getDb();
+function getResellerRemainingDays(adminId: string): number | null {
   const state = getResellerState(adminId);
-  if (!state) return { ok: false, error: 'Reseller account not active or not found' };
-  if (days > state.maxCredits) {
-    return { ok: false, error: `Requested days (${days}) exceed reseller max (${state.maxCredits})` };
-  }
-  if (days > state.credits) {
-    return { ok: false, error: `Insufficient reseller credits: ${state.credits} days remaining` };
-  }
-  return { ok: true };
-}
-
-function debitResellerCredits(adminId: string, days: number): void {
-  const db = getDb();
-  db.prepare("UPDATE admins SET credits = credits - ?, updated_at = datetime('now') WHERE id = ?").run(days, adminId);
-}
-
-function creditResellerCredits(adminId: string, days: number): void {
-  const db = getDb();
-  db.prepare("UPDATE admins SET credits = credits + ?, updated_at = datetime('now') WHERE id = ?").run(days, adminId);
+  return state ? state.remainingDays : null;
 }
 
 // GET /api/clients
@@ -163,20 +153,18 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
     return;
   }
 
-  let resellerDebitDone = false;
   if (req.admin!.role === 'reseller') {
     const protocolCheck = canResellerUseProtocol(req.admin!.id, normalizedProtocol);
     if (!protocolCheck.ok) {
       res.status(403).json({ error: protocolCheck.error || 'Protocol not allowed for reseller' });
       return;
     }
-    const creditCheck = ensureResellerCredits(req.admin!.id, days);
-    if (!creditCheck.ok) {
-      res.status(403).json({ error: creditCheck.error || 'Reseller credits exceeded' });
+    // Verify reseller account is still valid (server-side check)
+    const remaining = getResellerRemainingDays(req.admin!.id);
+    if (remaining === null) {
+      res.status(403).json({ error: 'Reseller account not active or expired' });
       return;
     }
-    debitResellerCredits(req.admin!.id, days);
-    resellerDebitDone = true;
   }
 
   // Provision the account via shell scripts
@@ -196,9 +184,6 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
   }
 
   if (!scriptResult.success) {
-    if (resellerDebitDone) {
-      creditResellerCredits(req.admin!.id, days);
-    }
     res.status(500).json({ error: scriptResult.error || 'Failed to create account' });
     return;
   }
@@ -212,9 +197,6 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(id, username, password, normalizedProtocol, plan_id || null, expiresAt, 'active', req.admin!.id, JSON.stringify(scriptResult.data || {}));
   } catch (e) {
-    if (resellerDebitDone) {
-      creditResellerCredits(req.admin!.id, days);
-    }
     res.status(500).json({ error: 'Failed to persist client in database' });
     return;
   }
@@ -296,15 +278,18 @@ router.post('/:id/renew', requireAuth, (req: AuthRequest, res: Response): void =
     res.status(403).json({ error: 'Forbidden: reseller can only renew own clients' });
     return;
   }
-  let resellerDebitDone = false;
   if (req.admin!.role === 'reseller') {
-    const creditCheck = ensureResellerCredits(req.admin!.id, days);
-    if (!creditCheck.ok) {
-      res.status(403).json({ error: creditCheck.error || 'Reseller credits exceeded' });
+    const remaining = getResellerRemainingDays(req.admin!.id);
+    if (remaining === null) {
+      res.status(403).json({ error: 'Reseller account not active or expired' });
       return;
     }
-    debitResellerCredits(req.admin!.id, days);
-    resellerDebitDone = true;
+    if (days > remaining) {
+      res.status(403).json({
+        error: `Impossible de renouveler pour ${days} jour(s) : votre compte revendeur expire dans ${remaining} jour(s)`,
+      });
+      return;
+    }
   }
 
   let scriptResult;
@@ -316,9 +301,6 @@ router.post('/:id/renew', requireAuth, (req: AuthRequest, res: Response): void =
   }
 
   if (!scriptResult.success) {
-    if (resellerDebitDone) {
-      creditResellerCredits(req.admin!.id, days);
-    }
     res.status(500).json({ error: scriptResult.error });
     return;
   }

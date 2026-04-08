@@ -15,8 +15,7 @@ export interface AuthUser {
   role: UserRole;
   bouquet?: ProtocolQuota[];
   expiryDate?: string;
-  credits?: number;
-  maxCredits?: number;
+  remainingDays?: number;
   isActive: boolean;
   createdAt?: string;
 }
@@ -55,8 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: admin.role as UserRole,
         bouquet,
         expiryDate: admin.expiry_date,
-        credits: admin.credits,
-        maxCredits: admin.max_credits,
+        remainingDays: admin.remaining_days,
         isActive: true,
       });
     } catch {
@@ -82,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         bouquet: [],
         isActive: true,
       });
-      // Reload full user info (bouquet, credits, etc.)
+      // Reload full user info (bouquet, expiry, etc.)
       await loadUser();
       return true;
     } catch {

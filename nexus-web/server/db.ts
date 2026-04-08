@@ -88,6 +88,9 @@ function initSchema(): void {
     );
 
     CREATE INDEX IF NOT EXISTS idx_clients_created_by ON clients(created_by);
+    CREATE INDEX IF NOT EXISTS idx_admins_role_status ON admins(role, status);
+    CREATE INDEX IF NOT EXISTS idx_admins_role_status_expiry ON admins(role, status, expiry_date);
+    CREATE INDEX IF NOT EXISTS idx_admins_role_status_suspended ON admins(role, status, suspended_at);
   `);
 
   // Migration: add new columns to admins table if they don't exist
@@ -104,6 +107,9 @@ function initSchema(): void {
   }
   if (!cols.includes('max_credits')) {
     database.exec('ALTER TABLE admins ADD COLUMN max_credits INTEGER DEFAULT 0');
+  }
+  if (!cols.includes('suspended_at')) {
+    database.exec('ALTER TABLE admins ADD COLUMN suspended_at TEXT');
   }
 }
 
