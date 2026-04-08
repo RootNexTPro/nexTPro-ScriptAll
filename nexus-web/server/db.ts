@@ -105,6 +105,9 @@ function initSchema(): void {
   if (!cols.includes('max_credits')) {
     database.exec('ALTER TABLE admins ADD COLUMN max_credits INTEGER DEFAULT 0');
   }
+  if (!cols.includes('suspended_at')) {
+    database.exec('ALTER TABLE admins ADD COLUMN suspended_at TEXT');
+  }
 }
 
 export function seedSuperAdmin(username: string, password: string): void {

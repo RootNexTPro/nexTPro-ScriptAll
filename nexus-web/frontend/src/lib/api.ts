@@ -43,8 +43,7 @@ export const api = {
         role: string;
         bouquet?: any;
         expiry_date?: string;
-        credits?: number;
-        max_credits?: number;
+        remaining_days?: number;
       };
     }>('GET', '/auth/me'),
 
@@ -81,7 +80,7 @@ export const api = {
 
   suspendReseller: (id: string) => apiRequest<any>('POST', `/resellers/${id}/suspend`),
   activateReseller: (id: string) => apiRequest<any>('POST', `/resellers/${id}/activate`),
-  updateReseller: (id: string, data: { bouquet?: any[]; duration_days?: number; credits?: number; password?: string }) =>
+  updateReseller: (id: string, data: { bouquet?: any[]; duration_days?: number; password?: string }) =>
     apiRequest<any>('PUT', `/resellers/${id}`, data),
   deleteReseller: (id: string) => apiRequest<any>('DELETE', `/resellers/${id}`),
 
@@ -111,6 +110,10 @@ export const api = {
   // Settings
   getSettings: () => apiRequest<any>('GET', '/settings'),
   updateSettings: (data: any) => apiRequest<any>('PUT', '/settings', data),
+
+  // Server time (UTC) — use this instead of client Date.now() to avoid clock manipulation
+  getServerTime: () =>
+    apiRequest<{ unix: number; iso: string }>('GET', '/server-time'),
 
   // Stats
   getStats: () => apiRequest<any>('GET', '/logs/stats'),

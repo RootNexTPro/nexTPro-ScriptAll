@@ -13,8 +13,6 @@ interface Reseller {
   created_at: string;
   expiry_date?: string;
   bouquet?: Array<{ protocolId: string; maxAccounts: number; usedAccounts?: number }>;
-  credits?: number;
-  max_credits?: number;
   isActive: boolean;
 }
 
@@ -31,8 +29,6 @@ function mapReseller(r: any): Reseller {
     created_at: r.created_at,
     expiry_date: r.expiry_date,
     bouquet,
-    credits: r.credits,
-    max_credits: r.max_credits,
     isActive: r.status === 'active',
   };
 }
@@ -61,7 +57,6 @@ export default function AdminResellers() {
   const [editBouquet, setEditBouquet] = useState<Record<string, boolean>>({});
   const [editLimits, setEditLimits] = useState<Record<string, number>>({});
   const [editDuration, setEditDuration] = useState('30');
-  const [editCredits, setEditCredits] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
@@ -129,7 +124,6 @@ export default function AdminResellers() {
     setEditReseller(reseller);
     setEditError('');
     setEditPassword('');
-    setEditCredits(String(reseller.credits ?? ''));
     setEditDuration('30');
     // Pre-populate bouquet
     const bq: Record<string, boolean> = {};
@@ -151,7 +145,6 @@ export default function AdminResellers() {
       .map(p => ({ protocolId: p.id, maxAccounts: editLimits[p.id] || 10 }));
     const payload: any = { bouquet };
     if (editDuration && parseInt(editDuration) > 0) payload.duration_days = parseInt(editDuration);
-    if (editCredits !== '') payload.credits = parseInt(editCredits) || 0;
     if (editPassword.trim()) payload.password = editPassword.trim();
     try {
       await api.updateReseller(editReseller.id, payload);
@@ -333,10 +326,9 @@ export default function AdminResellers() {
 
       {/* Resellers Table */}
       <div className="glass-card overflow-hidden">
-        <div className="grid grid-cols-7 gap-4 p-4 border-b border-border text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">
+        <div className="grid grid-cols-6 gap-4 p-4 border-b border-border text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">
           <span>Utilisateur</span>
           <span>Statut</span>
-          <span>Crédits</span>
           <span>Bouquet</span>
           <span>Expiration</span>
           <span>Créé le</span>
@@ -353,7 +345,7 @@ export default function AdminResellers() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0 }}
                 transition={{ delay: i * 0.03 }}
-                className="grid grid-cols-7 gap-4 p-4 border-b border-border last:border-0 hover:bg-secondary/20 transition-all items-center"
+                className="grid grid-cols-6 gap-4 p-4 border-b border-border last:border-0 hover:bg-secondary/20 transition-all items-center"
               >
                 <div>
                   <p className="text-sm font-mono text-foreground font-semibold">{reseller.username}</p>
@@ -363,10 +355,6 @@ export default function AdminResellers() {
                   <span className={`protocol-badge ${reseller.isActive ? 'border-success/30 text-success bg-success/10' : 'border-destructive/30 text-destructive bg-destructive/10'}`}>
                     {reseller.isActive ? 'Actif' : 'Inactif'}
                   </span>
-                </div>
-                <div>
-                  <p className="font-display font-bold text-primary">{reseller.credits ?? '—'}</p>
-                  <p className="text-xs text-muted-foreground">/ {reseller.max_credits ?? '—'} j</p>
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {reseller.bouquet?.slice(0, 3).map(b => (
@@ -497,19 +485,6 @@ export default function AdminResellers() {
                       <option value="180">+180 Jours</option>
                       <option value="360">+360 Jours</option>
                     </select>
-                  </div>
-                  <div>
-                    <label className="text-xs uppercase tracking-widest text-muted-foreground mb-2 block font-semibold">
-                      Crédits (jours)
-                    </label>
-                    <input
-                      type="number"
-                      value={editCredits}
-                      onChange={e => setEditCredits(e.target.value)}
-                      className="input-dark w-full font-mono"
-                      placeholder={`Actuel : ${editReseller.credits ?? '—'}`}
-                      min="0"
-                    />
                   </div>
                   <div>
                     <label className="text-xs uppercase tracking-widest text-muted-foreground mb-2 block font-semibold">

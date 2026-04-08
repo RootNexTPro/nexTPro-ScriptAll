@@ -25,7 +25,7 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDb();
   const resellers = db.prepare(
     `SELECT id, username, role, status, created_at, updated_at,
-            bouquet, expiry_date, credits, max_credits
+            bouquet, expiry_date, suspended_at
      FROM admins WHERE role = 'reseller'
      ORDER BY created_at DESC`
   ).all();
@@ -102,9 +102,9 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
   );
 
   db.prepare(
-    `INSERT INTO admins (id, username, password_hash, role, status, bouquet, expiry_date, credits, max_credits)
-     VALUES (?, ?, ?, 'reseller', 'active', ?, ?, ?, ?)`
-  ).run(id, username, hash, bouquetJson, expiryDate, days, days);
+    `INSERT INTO admins (id, username, password_hash, role, status, bouquet, expiry_date)
+     VALUES (?, ?, ?, 'reseller', 'active', ?, ?)`
+  ).run(id, username, hash, bouquetJson, expiryDate);
 
   logAction(
     admin.id, admin.username, 'CREATE_RESELLER', 'reseller', id,
@@ -113,7 +113,7 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
 
   res.status(201).json({
     id, username, role: 'reseller', status: 'active',
-    expiry_date: expiryDate, credits: days, max_credits: days,
+    expiry_date: expiryDate,
     bouquet: bouquetJson,
   });
 });
@@ -153,12 +153,12 @@ router.post('/:id/activate', requireAuth, (req: AuthRequest, res: Response): voi
     return;
   }
 
-  db.prepare("UPDATE admins SET status = 'active', updated_at = datetime('now') WHERE id = ?").run(req.params.id);
+  db.prepare("UPDATE admins SET status = 'active', suspended_at = NULL, updated_at = datetime('now') WHERE id = ?").run(req.params.id);
   logAction(admin.id, admin.username, 'ACTIVATE_RESELLER', 'reseller', req.params.id, {}, req.ip || null);
   res.json({ message: 'Reseller activated' });
 });
 
-// PUT /api/resellers/:id — update reseller bouquet, credits and/or expiry (admin or super_admin)
+// PUT /api/resellers/:id — update reseller bouquet and/or expiry (admin or super_admin)
 router.put('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const admin = req.admin!;
   if (admin.role !== 'admin' && admin.role !== 'super_admin') {
@@ -166,10 +166,9 @@ router.put('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
     return;
   }
 
-  const { bouquet, duration_days, credits, password } = req.body as {
+  const { bouquet, duration_days, password } = req.body as {
     bouquet?: Array<{ protocolId: string; maxAccounts: number }>;
     duration_days?: number;
-    credits?: number;
     password?: string;
   };
 
@@ -208,19 +207,9 @@ router.put('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
       return;
     }
     const newExpiry = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d;
-    updates.push('expiry_date = ?', 'max_credits = ?');
-    params.push(newExpiry, days);
-  }
-
-  // credits is set independently or as reset when duration_days changes
-  const effectiveCredits = credits !== undefined ? Number(credits) : (duration_days !== undefined ? Number(duration_days) : undefined);
-  if (effectiveCredits !== undefined) {
-    if (!Number.isInteger(effectiveCredits) || effectiveCredits < 0) {
-      res.status(400).json({ error: 'credits must be a non-negative integer' });
-      return;
-    }
-    updates.push('credits = ?');
-    params.push(effectiveCredits);
+    // Re-activating when a new expiry is set: clear suspended_at
+    updates.push('expiry_date = ?', 'suspended_at = NULL', "status = 'active'");
+    params.push(newExpiry);
   }
 
   if (password !== undefined) {
@@ -250,7 +239,7 @@ router.put('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   logAction(admin.id, admin.username, 'UPDATE_RESELLER', 'reseller', req.params.id, {}, req.ip || null);
 
   const updated = db.prepare(
-    'SELECT id, username, role, status, bouquet, expiry_date, credits, max_credits FROM admins WHERE id = ?'
+    'SELECT id, username, role, status, bouquet, expiry_date FROM admins WHERE id = ?'
   ).get(req.params.id);
   res.json(updated);
 });

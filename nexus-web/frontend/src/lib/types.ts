@@ -11,8 +11,7 @@ export interface User {
   username: string;
   password?: string;
   role: UserRole;
-  credits: number;
-  maxCredits: number;
+  remainingDays?: number;
   expiryDate: string;
   createdAt: string;
   createdBy?: string;
@@ -66,7 +65,6 @@ export interface DashboardStats {
   activeResellers: number;
   totalAccounts: number;
   activeAccounts: number;
-  totalCreditsUsed: number;
   protocolsEnabled: number;
 }
 

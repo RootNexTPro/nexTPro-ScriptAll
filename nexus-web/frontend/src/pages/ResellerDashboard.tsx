@@ -1,22 +1,28 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
-import { CreditCard, Zap, Clock, TrendingUp } from 'lucide-react';
+import { Calendar, Zap, Clock, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function ResellerDashboard() {
   const { user } = useAuth();
   const [recentClients, setRecentClients] = useState<any[]>([]);
+  const [serverUnix, setServerUnix] = useState<number | null>(null);
 
   useEffect(() => {
     api.listClients({ mine: true })
       .then(data => setRecentClients(data.slice(0, 5)))
+      .catch(() => {});
+    // Fetch server time once so we can display client status correctly
+    api.getServerTime()
+      .then(({ unix }) => setServerUnix(unix))
       .catch(() => {});
   }, []);
 
   const bouquetCount = user?.bouquet?.length || 0;
   const totalUsed = user?.bouquet?.reduce((a, b) => a + (b.usedAccounts || 0), 0) || 0;
   const totalMax = user?.bouquet?.reduce((a, b) => a + b.maxAccounts, 0) || 0;
+  const remainingDays = user?.remainingDays ?? 0;
 
   return (
     <div className="space-y-8">
@@ -30,15 +36,15 @@ export default function ResellerDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
-            label: 'Crédits Restants',
-            value: user?.credits ?? 0,
-            icon: CreditCard,
-            sub: `/ ${user?.maxCredits ?? 0} jours`,
-            showProgress: true,
+            label: 'Jours Restants',
+            value: remainingDays,
+            icon: Calendar,
+            sub: 'sur votre compte revendeur',
+            showProgress: false,
           },
           { label: 'Protocoles', value: bouquetCount, icon: Zap, sub: 'dans votre bouquet' },
           { label: 'Comptes Créés', value: totalUsed, icon: TrendingUp, sub: `/ ${totalMax} max` },
-          { label: 'Expiration', value: user?.expiryDate || '-', icon: Clock, sub: "date d'expiration", small: true },
+          { label: 'Expiration', value: user?.expiryDate || '-', icon: Clock, sub: "date d'expiration (serveur)", small: true },
         ].map((stat, i) => (
           <motion.div
             key={stat.label}
@@ -53,17 +59,6 @@ export default function ResellerDashboard() {
             </div>
             <p className={`font-display font-bold text-foreground ${stat.small ? 'text-lg' : 'stat-value'}`}>{stat.value}</p>
             <p className="text-xs text-muted-foreground mt-1">{stat.sub}</p>
-            {stat.showProgress && (
-              <div className="w-full bg-secondary rounded-full h-2 mt-3 overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${((user?.credits ?? 0) / (user?.maxCredits || 1)) * 100}%` }}
-                  transition={{ delay: 0.5, duration: 1 }}
-                  className="h-2 rounded-full"
-                  style={{ background: 'var(--gradient-primary)' }}
-                />
-              </div>
-            )}
           </motion.div>
         ))}
       </div>
@@ -110,7 +105,10 @@ export default function ResellerDashboard() {
         <div className="space-y-3">
           {recentClients.length > 0 ? (
             recentClients.map((client, i) => {
-              const isActive = client.status === 'active' && new Date(client.expires_at) > new Date();
+              // Use server time (unix seconds) for active status check
+              const expiresUnix = client.expires_at ? Math.floor(new Date(client.expires_at).getTime() / 1000) : 0;
+              const now = serverUnix ?? Math.floor(Date.now() / 1000);
+              const isActive = client.status === 'active' && expiresUnix > now;
               return (
                 <div key={i} className="flex items-center justify-between py-3 border-b border-border last:border-0">
                   <div className="flex items-center gap-4">
