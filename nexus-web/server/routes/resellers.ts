@@ -207,7 +207,8 @@ router.put('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
       return;
     }
     const newExpiry = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d;
-    // Re-activating when a new expiry is set: clear suspended_at
+    // When an admin explicitly sets a new expiry, the reseller is intentionally re-authorized
+    // (clears any prior suspension from auto-expiry and resets suspended_at).
     updates.push('expiry_date = ?', 'suspended_at = NULL', "status = 'active'");
     params.push(newExpiry);
   }

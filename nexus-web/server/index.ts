@@ -180,7 +180,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 // Server time endpoint — clients must use this to validate their clock
-app.get('/api/server-time', (_req, res) => {
+app.get('/api/server-time', apiLimiter, (_req, res) => {
   const db = getDb();
   const row = db.prepare("SELECT strftime('%s', 'now') as unix_ts, datetime('now') as iso").get() as { unix_ts: string; iso: string };
   res.json({ unix: Number(row.unix_ts), iso: row.iso });

@@ -51,10 +51,9 @@ export default function ResellerCreateAccount() {
 
   // Cap duration at the reseller's remaining days (server-side enforced)
   const remainingDays = user?.remainingDays ?? 9999;
-  const effectiveDays = Math.min(
-    useCustomDuration ? (parseInt(customDuration) || 1) : parseInt(duration),
-    remainingDays
-  );
+  const NO_EXPIRY = remainingDays >= 9999;
+  const requestedDays = useCustomDuration ? (parseInt(customDuration) || 1) : parseInt(duration);
+  const effectiveDays = NO_EXPIRY ? requestedDays : Math.min(requestedDays, remainingDays);
 
   const handleGenerate = async () => {
     if (!username.trim() || !password.trim() || !canCreate) return;
@@ -202,7 +201,7 @@ export default function ResellerCreateAccount() {
             <div>
               <label className="text-xs uppercase tracking-widest text-muted-foreground mb-2 block font-semibold">
                 Validité
-                {remainingDays < 9999 && (
+                {!NO_EXPIRY && (
                   <span className="ml-1 text-muted-foreground normal-case font-normal">(max {remainingDays}j)</span>
                 )}
               </label>
@@ -215,17 +214,17 @@ export default function ResellerCreateAccount() {
                     className="input-dark w-full font-mono"
                     placeholder="Jours"
                     min="1"
-                    max={remainingDays < 9999 ? remainingDays : undefined}
+                    max={NO_EXPIRY ? undefined : remainingDays}
                   />
                   <button onClick={() => setUseCustomDuration(false)} className="btn-ghost text-xs whitespace-nowrap">Standard</button>
                 </div>
               ) : (
                 <div className="flex gap-2">
                   <select value={duration} onChange={e => setDuration(e.target.value)} className="input-dark w-full">
-                    {[1, 7, 30, 60, 90, 180, 360].filter(d => d <= (remainingDays < 9999 ? remainingDays : Infinity)).map(d => (
+                    {[1, 7, 30, 60, 90, 180, 360].filter(d => NO_EXPIRY || d <= remainingDays).map(d => (
                       <option key={d} value={String(d)}>{d} {d === 1 ? 'Jour' : 'Jours'}</option>
                     ))}
-                    {remainingDays < 9999 && remainingDays > 0 && ![1, 7, 30, 60, 90, 180, 360].includes(remainingDays) && (
+                    {!NO_EXPIRY && remainingDays > 0 && ![1, 7, 30, 60, 90, 180, 360].includes(remainingDays) && (
                       <option value={String(remainingDays)}>{remainingDays} Jours (max)</option>
                     )}
                   </select>
