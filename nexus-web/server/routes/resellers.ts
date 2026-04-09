@@ -34,7 +34,7 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
 });
 
 // POST /api/resellers — create a reseller (admin or super_admin)
-router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
+router.post('/', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   const admin = req.admin!;
   if (admin.role !== 'admin' && admin.role !== 'super_admin') {
     res.status(403).json({ error: 'Forbidden' });
@@ -93,7 +93,7 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
   }
 
   const id = uuidv4();
-  const hash = bcrypt.hashSync(password, 12);
+  const hash = await bcrypt.hash(password, 12);
   const bouquetJson = JSON.stringify(
     normalizedBouquet.map((b) => ({
       protocolId: normalizeProtocol(String(b.protocolId)),
@@ -159,7 +159,7 @@ router.post('/:id/activate', requireAuth, (req: AuthRequest, res: Response): voi
 });
 
 // PUT /api/resellers/:id — update reseller bouquet and/or expiry (admin or super_admin)
-router.put('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
+router.put('/:id', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   const admin = req.admin!;
   if (admin.role !== 'admin' && admin.role !== 'super_admin') {
     res.status(403).json({ error: 'Forbidden' });
@@ -219,7 +219,7 @@ router.put('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
       return;
     }
     updates.push('password_hash = ?');
-    params.push(bcrypt.hashSync(password, 12));
+    params.push(await bcrypt.hash(password, 12));
   }
 
   if (updates.length === 0) {

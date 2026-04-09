@@ -15,8 +15,8 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const success = await login(username, password);
-    if (!success) setError('Identifiants invalides');
+    const result = await login(username, password);
+    if (!result.success) setError(result.error || 'Identifiants invalides');
     setLoading(false);
   };
 

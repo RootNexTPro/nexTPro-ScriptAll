@@ -49,6 +49,18 @@ const adminPass = config.admin_password || process.env.NEXUS_ADMIN_PASS || 'admi
 getDb();
 seedSuperAdmin(adminUser, adminPass);
 
+// ─── Global error handlers — ensure Node.js exits on fatal errors ─────────────
+// systemd Restart=always will relaunch the process automatically.
+process.on('uncaughtException', (err: Error) => {
+  console.error('[FATAL] Uncaught exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason: unknown) => {
+  console.error('[FATAL] Unhandled promise rejection:', reason);
+  process.exit(1);
+});
+
 // ─── Expiry scheduler ─────────────────────────────────────────────────────────
 // Uses server-side SQLite time (date('now') / datetime('now')) exclusively,
 // so client date/time manipulation has no effect on expiry enforcement.
@@ -58,7 +70,22 @@ function runExpiryScheduler(): void {
   try {
     const db = getDb();
 
-    // 1. Suspend active resellers whose expiry_date has passed (server time)
+    // 1. Suspend expired active client accounts (server time)
+    const expiredClients = db.prepare(
+      "SELECT id, username, protocol FROM clients WHERE status = 'active' AND expires_at < date('now')"
+    ).all() as { id: string; username: string; protocol: string }[];
+
+    for (const client of expiredClients) {
+      if (SSH_PROTOCOLS.has(client.protocol)) {
+        try { suspendSshAccount(client.username); } catch {}
+      }
+      db.prepare(
+        "UPDATE clients SET status = 'suspended', updated_at = datetime('now') WHERE id = ?"
+      ).run(client.id);
+      console.log(`[SCHEDULER] Client '${client.username}' (${client.protocol}) expired — suspended`);
+    }
+
+    // 2. Suspend active resellers whose expiry_date has passed (server time)
     const expiredResellers = db.prepare(
       "SELECT id, username FROM admins WHERE role = 'reseller' AND status = 'active' AND expiry_date IS NOT NULL AND expiry_date < date('now')"
     ).all() as { id: string; username: string }[];
@@ -89,7 +116,7 @@ function runExpiryScheduler(): void {
       console.log(`[SCHEDULER] Reseller '${reseller.username}' expired — suspended along with ${clients.length} client(s)`);
     }
 
-    // 2. Delete resellers that have been suspended for more than 24 hours
+    // 3. Delete resellers that have been suspended for more than 24 hours
     const toDelete = db.prepare(
       "SELECT id, username FROM admins WHERE role = 'reseller' AND status = 'suspended' AND suspended_at IS NOT NULL AND suspended_at <= datetime('now', '-24 hours')"
     ).all() as { id: string; username: string }[];
@@ -119,6 +146,19 @@ function runExpiryScheduler(): void {
 // Run immediately on start, then every 60 seconds
 runExpiryScheduler();
 setInterval(runExpiryScheduler, 60 * 1000);
+
+// ─── DB watchdog — exit if DB becomes unresponsive so systemd can restart ─────
+let _lastDbOk = Date.now();
+setInterval(() => {
+  try {
+    getDb().prepare('SELECT 1').get();
+    _lastDbOk = Date.now();
+  } catch (err) {
+    const staleSec = Math.round((Date.now() - _lastDbOk) / 1000);
+    console.error(`[WATCHDOG] DB unresponsive for ${staleSec}s — exiting for auto-restart:`, err);
+    process.exit(1);
+  }
+}, 30 * 1000);
 
 // ─── Express app ──────────────────────────────────────────────────────────────
 const app = express();

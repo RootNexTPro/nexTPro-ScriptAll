@@ -7,6 +7,7 @@ import {
   renewSshAccount,
   deleteSshAccount,
   suspendSshAccount,
+  setSshAccountExpiry,
   createXrayVmessAccount,
   createXrayVlessAccount,
   createXrayTrojanAccount,
@@ -346,6 +347,56 @@ router.post('/:id/suspend', requireAuth, (req: AuthRequest, res: Response): void
     { username: client.username }, req.ip || null);
 
   res.json({ message: 'Client suspended' });
+});
+
+// POST /api/clients/:id/reduce-days — subtract days from a client's expiry
+router.post('/:id/reduce-days', requireAuth, (req: AuthRequest, res: Response): void => {
+  const { days } = req.body as { days?: number };
+  if (!days || days < 1) {
+    res.status(400).json({ error: 'days required and must be >= 1' });
+    return;
+  }
+
+  const db = getDb();
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id) as {
+    id: string; username: string; protocol: string; expires_at: string; status: string; created_by?: string
+  } | undefined;
+
+  if (!client) {
+    res.status(404).json({ error: 'Client not found' });
+    return;
+  }
+
+  if (req.admin!.role === 'reseller' && client.created_by !== req.admin!.id) {
+    res.status(403).json({ error: 'Forbidden: reseller can only modify own clients' });
+    return;
+  }
+
+  // Calculate new expiry by subtracting days from current expires_at (server time arithmetic)
+  const newExpiryRow = db.prepare("SELECT date(?, ?) as d").get(client.expires_at, `-${days} days`) as { d: string };
+  const newExpiry = newExpiryRow.d;
+
+  // Check if new expiry is already in the past (server date)
+  const isExpired = (db.prepare("SELECT ? < date('now') as expired").get(newExpiry) as { expired: number }).expired;
+
+  // Update system account expiry for SSH-based protocols
+  if (['ssh', 'slowdns', 'udpcustom'].includes(client.protocol)) {
+    if (isExpired) {
+      // Suspend the system account
+      try { suspendSshAccount(client.username); } catch {}
+    } else {
+      try { setSshAccountExpiry(client.username, newExpiry); } catch {}
+    }
+  }
+
+  const newStatus = isExpired ? 'suspended' : (client.status === 'suspended' ? 'suspended' : 'active');
+  db.prepare("UPDATE clients SET expires_at = ?, status = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(newExpiry, newStatus, req.params.id);
+
+  logAction(req.admin!.id, req.admin!.username, 'REDUCE_CLIENT_DAYS', 'client', req.params.id,
+    { username: client.username, days_removed: days, new_expiry: newExpiry }, req.ip || null);
+
+  res.json({ message: 'Client expiry reduced', expires_at: newExpiry, status: newStatus });
 });
 
 // DELETE /api/clients/:id

@@ -16,13 +16,14 @@ export interface AuthUser {
   bouquet?: ProtocolQuota[];
   expiryDate?: string;
   remainingDays?: number;
+  remainingSeconds?: number;
   isActive: boolean;
   createdAt?: string;
 }
 
 interface AuthContextType {
   user: AuthUser | null;
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   loading: boolean;
@@ -55,6 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         bouquet,
         expiryDate: admin.expiry_date,
         remainingDays: admin.remaining_days,
+        remainingSeconds: admin.remaining_seconds,
         isActive: true,
       });
     } catch {
@@ -69,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loadUser();
   }, [loadUser]);
 
-  const login = useCallback(async (username: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const { token, admin } = await api.login(username, password);
       saveToken(token);
@@ -82,9 +84,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       // Reload full user info (bouquet, expiry, etc.)
       await loadUser();
-      return true;
-    } catch {
-      return false;
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Identifiants invalides' };
     }
   }, [loadUser]);
 

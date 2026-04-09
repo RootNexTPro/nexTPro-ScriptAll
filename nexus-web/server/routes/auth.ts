@@ -9,7 +9,7 @@ const router = Router();
 const SESSION_HOURS = 24;
 
 // POST /api/auth/login
-router.post('/login', (req: AuthRequest, res: Response): void => {
+router.post('/login', async (req: AuthRequest, res: Response): Promise<void> => {
   const { username, password } = req.body as { username?: string; password?: string };
   if (!username || !password) {
     res.status(400).json({ error: 'Username and password required' });
@@ -21,13 +21,16 @@ router.post('/login', (req: AuthRequest, res: Response): void => {
     'SELECT id, username, password_hash, role, status FROM admins WHERE username = ?'
   ).get(username) as { id: string; username: string; password_hash: string; role: string; status: string } | undefined;
 
-  if (!admin || !bcrypt.compareSync(password, admin.password_hash)) {
-    res.status(401).json({ error: 'Invalid credentials' });
+  // Use async bcrypt.compare so the event loop is not blocked during heavy concurrent logins
+  const passwordMatch = admin ? await bcrypt.compare(password, admin.password_hash) : false;
+
+  if (!admin || !passwordMatch) {
+    res.status(401).json({ error: 'Identifiants invalides' });
     return;
   }
 
   if (admin.status !== 'active') {
-    res.status(403).json({ error: 'Account suspended' });
+    res.status(403).json({ error: 'Compte suspendu' });
     return;
   }
 
@@ -92,18 +95,21 @@ router.get('/me', requireAuth, (req: AuthRequest, res: Response): void => {
   if (admin.role === 'reseller' && admin.expiry_date) {
     const expired = (db.prepare("SELECT expiry_date < date('now') as is_exp FROM admins WHERE id = ?").get(admin.id) as { is_exp: number }).is_exp;
     if (expired) {
-      res.status(403).json({ error: 'Account suspended' });
+      res.status(403).json({ error: 'Compte revendeur expiré' });
       return;
     }
   }
 
-  // Calculate remaining days from server time
+  // Calculate remaining days and remaining seconds from server time
   let remainingDays: number | null = null;
+  let remainingSeconds: number | null = null;
   if (admin.expiry_date) {
     const row = db.prepare(
-      "SELECT CAST(JULIANDAY(?) - JULIANDAY(date('now')) AS INTEGER) as days"
-    ).get(admin.expiry_date) as { days: number };
+      "SELECT CAST(JULIANDAY(?) - JULIANDAY(date('now')) AS INTEGER) as days, " +
+      "CAST((JULIANDAY(? || ' 23:59:59') - JULIANDAY(datetime('now'))) * 86400 AS INTEGER) as secs"
+    ).get(admin.expiry_date, admin.expiry_date) as { days: number; secs: number };
     remainingDays = Math.max(0, row.days);
+    remainingSeconds = Math.max(0, row.secs);
   }
 
   let bouquet: unknown = admin.bouquet;
@@ -132,12 +138,13 @@ router.get('/me', requireAuth, (req: AuthRequest, res: Response): void => {
       bouquet,
       expiry_date: admin.expiry_date,
       remaining_days: remainingDays,
+      remaining_seconds: remainingSeconds,
     },
   });
 });
 
 // POST /api/auth/change-password
-router.post('/change-password', requireAuth, (req: AuthRequest, res: Response): void => {
+router.post('/change-password', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   const { current_password, new_password, new_username } = req.body as {
     current_password?: string;
     new_password?: string;
@@ -154,7 +161,8 @@ router.post('/change-password', requireAuth, (req: AuthRequest, res: Response): 
     'SELECT id, username, password_hash FROM admins WHERE id = ?'
   ).get(req.admin!.id) as { id: string; username: string; password_hash: string } | undefined;
 
-  if (!admin || !bcrypt.compareSync(current_password, admin.password_hash)) {
+  const passwordMatch = admin ? await bcrypt.compare(current_password, admin.password_hash) : false;
+  if (!admin || !passwordMatch) {
     res.status(401).json({ error: 'Current password incorrect' });
     return;
   }
@@ -168,7 +176,7 @@ router.post('/change-password', requireAuth, (req: AuthRequest, res: Response): 
       return;
     }
     updates.push('password_hash = ?');
-    params.push(bcrypt.hashSync(new_password, 12));
+    params.push(await bcrypt.hash(new_password, 12));
   }
 
   if (new_username) {

@@ -16,7 +16,7 @@ router.get('/', requireSuperAdmin, (req: AuthRequest, res: Response): void => {
 });
 
 // POST /api/admins — create admin (super_admin only)
-router.post('/', requireSuperAdmin, (req: AuthRequest, res: Response): void => {
+router.post('/', requireSuperAdmin, async (req: AuthRequest, res: Response): Promise<void> => {
   const { username, password, role } = req.body as {
     username?: string;
     password?: string;
@@ -44,7 +44,7 @@ router.post('/', requireSuperAdmin, (req: AuthRequest, res: Response): void => {
   }
 
   const id = uuidv4();
-  const hash = bcrypt.hashSync(password, 12);
+  const hash = await bcrypt.hash(password, 12);
   db.prepare(
     'INSERT INTO admins (id, username, password_hash, role, status) VALUES (?, ?, ?, ?, ?)'
   ).run(id, username, hash, adminRole, 'active');
@@ -69,7 +69,7 @@ router.get('/:id', requireSuperAdmin, (req: AuthRequest, res: Response): void =>
 });
 
 // PUT /api/admins/:id — update admin info
-router.put('/:id', requireSuperAdmin, (req: AuthRequest, res: Response): void => {
+router.put('/:id', requireSuperAdmin, async (req: AuthRequest, res: Response): Promise<void> => {
   const { username, password } = req.body as { username?: string; password?: string };
   const db = getDb();
 
@@ -98,7 +98,7 @@ router.put('/:id', requireSuperAdmin, (req: AuthRequest, res: Response): void =>
       return;
     }
     updates.push('password_hash = ?');
-    params.push(bcrypt.hashSync(password, 12));
+    params.push(await bcrypt.hash(password, 12));
   }
 
   if (updates.length === 0) {
