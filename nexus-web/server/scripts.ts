@@ -180,7 +180,10 @@ export function setSshAccountExpiry(username: string, date: string): AccountResu
     if (check.status !== 0) {
       return { success: false, error: `User '${username}' not found` };
     }
-    spawnSync('chage', ['-E', date, username], { encoding: 'utf8' });
+    const result = spawnSync('chage', ['-E', date, username], { encoding: 'utf8' });
+    if (result.status !== 0) {
+      return { success: false, error: `chage failed: ${result.stderr?.trim() || 'unknown error'}` };
+    }
     return { success: true, data: { username, expiry: date } };
   } catch (err) {
     return { success: false, error: String(err) };

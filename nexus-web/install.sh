@@ -201,7 +201,10 @@ SVC
   # this cron restarts the service automatically (runs every minute).
   cat > /usr/local/bin/nexus-web-watchdog.sh <<'WATCHDOG'
 #!/bin/bash
-PORT=$(python3 -c "import sys,json; d=json.load(open('/etc/nexus-tunnel-web/config.json')); print(d.get('port',2087))" 2>/dev/null || echo 2087)
+CONFIG_FILE="/etc/nexus-tunnel-web/config.json"
+# Extract port from config using grep + awk (no Python required)
+PORT=$(grep -o '"port"[[:space:]]*:[[:space:]]*[0-9]*' "$CONFIG_FILE" 2>/dev/null | awk -F: '{gsub(/[^0-9]/,"",$2); print $2}')
+[ -z "$PORT" ] && PORT=2087
 FAIL_COUNT_FILE="/tmp/.nexus-web-watchdog-fails"
 if curl -sf --max-time 8 "http://localhost:${PORT}/api/health" > /dev/null 2>&1; then
   rm -f "$FAIL_COUNT_FILE"

@@ -383,9 +383,13 @@ router.post('/:id/reduce-days', requireAuth, (req: AuthRequest, res: Response): 
   if (['ssh', 'slowdns', 'udpcustom'].includes(client.protocol)) {
     if (isExpired) {
       // Suspend the system account
-      try { suspendSshAccount(client.username); } catch {}
+      try { suspendSshAccount(client.username); } catch (e) {
+        console.warn(`[REDUCE-DAYS] Could not suspend SSH account '${client.username}':`, e);
+      }
     } else {
-      try { setSshAccountExpiry(client.username, newExpiry); } catch {}
+      try { setSshAccountExpiry(client.username, newExpiry); } catch (e) {
+        console.warn(`[REDUCE-DAYS] Could not update SSH expiry for '${client.username}':`, e);
+      }
     }
   }
 

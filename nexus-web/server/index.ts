@@ -77,7 +77,9 @@ function runExpiryScheduler(): void {
 
     for (const client of expiredClients) {
       if (SSH_PROTOCOLS.has(client.protocol)) {
-        try { suspendSshAccount(client.username); } catch {}
+        try { suspendSshAccount(client.username); } catch (e) {
+          console.warn(`[SCHEDULER] Could not suspend SSH account '${client.username}':`, e);
+        }
       }
       db.prepare(
         "UPDATE clients SET status = 'suspended', updated_at = datetime('now') WHERE id = ?"

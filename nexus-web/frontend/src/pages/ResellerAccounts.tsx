@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { expiryToUnix } from '@/lib/utils';
 import { formatConfig } from '@/lib/config-formatter';
 import ConfigOutput from '@/components/ConfigOutput';
 import { Search, Trash2, RefreshCw, Eye, X, MinusCircle } from 'lucide-react';
@@ -56,9 +57,7 @@ export default function ResellerAccounts() {
 
   // Server-time-based active check — immune to client clock manipulation
   const isActive = (client: Client) => {
-    const expiresUnix = client.expires_at
-      ? Math.floor(new Date(client.expires_at + 'T23:59:59Z').getTime() / 1000)
-      : 0;
+    const expiresUnix = expiryToUnix(client.expires_at);
     const now = serverUnix ?? Math.floor(Date.now() / 1000);
     return client.status === 'active' && expiresUnix > now;
   };

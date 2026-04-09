@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
+import { expiryToUnix } from '@/lib/utils';
 import { Calendar, Zap, Clock, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -139,9 +140,7 @@ export default function ResellerDashboard() {
           {recentClients.length > 0 ? (
             recentClients.map((client, i) => {
               // Use server time (unix seconds) for active status check
-              const expiresUnix = client.expires_at
-                ? Math.floor(new Date(client.expires_at + 'T23:59:59Z').getTime() / 1000)
-                : 0;
+              const expiresUnix = expiryToUnix(client.expires_at);
               const now = serverUnix ?? Math.floor(Date.now() / 1000);
               const isActive = client.status === 'active' && expiresUnix > now;
               return (
