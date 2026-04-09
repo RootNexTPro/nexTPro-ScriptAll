@@ -44,6 +44,7 @@ export const api = {
         bouquet?: any;
         expiry_date?: string;
         remaining_days?: number;
+        remaining_seconds?: number;
       };
     }>('GET', '/auth/me'),
 
@@ -103,6 +104,9 @@ export const api = {
 
   renewClient: (id: string, days: number) =>
     apiRequest<any>('POST', `/clients/${id}/renew`, { days }),
+
+  reduceClientDays: (id: string, days: number) =>
+    apiRequest<any>('POST', `/clients/${id}/reduce-days`, { days }),
 
   suspendClient: (id: string) => apiRequest<any>('POST', `/clients/${id}/suspend`),
   deleteClient: (id: string) => apiRequest<any>('DELETE', `/clients/${id}`),

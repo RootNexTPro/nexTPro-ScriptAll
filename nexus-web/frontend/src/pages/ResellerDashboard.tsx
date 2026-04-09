@@ -1,28 +1,62 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
+import { expiryToUnix } from '@/lib/utils';
 import { Calendar, Zap, Clock, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
+
+function formatCountdown(secs: number): string {
+  if (secs <= 0) return 'Expiré';
+  const days = Math.floor(secs / 86400);
+  const hours = Math.floor((secs % 86400) / 3600);
+  const mins = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  const hh = hours.toString().padStart(2, '0');
+  const mm = mins.toString().padStart(2, '0');
+  const ss = s.toString().padStart(2, '0');
+  return days > 0 ? `${days}j ${hh}h ${mm}m ${ss}s` : `${hh}h ${mm}m ${ss}s`;
+}
 
 export default function ResellerDashboard() {
   const { user } = useAuth();
   const [recentClients, setRecentClients] = useState<any[]>([]);
   const [serverUnix, setServerUnix] = useState<number | null>(null);
 
+  // Real-time countdown state — seeded from remaining_seconds (server-authoritative)
+  const [countdown, setCountdown] = useState<string>('--');
+  const remainingSecsRef = useRef<number | null>(null);
+
   useEffect(() => {
     api.listClients({ mine: true })
       .then(data => setRecentClients(data.slice(0, 5)))
       .catch(() => {});
-    // Fetch server time once so we can display client status correctly
+    // Fetch server time once for client status display
     api.getServerTime()
       .then(({ unix }) => setServerUnix(unix))
       .catch(() => {});
   }, []);
 
+  // Seed countdown from server-authoritative remaining_seconds
+  useEffect(() => {
+    if (user?.remainingSeconds != null) {
+      remainingSecsRef.current = user.remainingSeconds;
+      setCountdown(formatCountdown(user.remainingSeconds));
+    }
+  }, [user?.remainingSeconds]);
+
+  // Tick every second, decrementing from the server-seeded value
+  useEffect(() => {
+    if (remainingSecsRef.current === null) return;
+    const interval = setInterval(() => {
+      remainingSecsRef.current = Math.max(0, (remainingSecsRef.current ?? 0) - 1);
+      setCountdown(formatCountdown(remainingSecsRef.current));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [user?.remainingSeconds]); // re-init when server value refreshes
+
   const bouquetCount = user?.bouquet?.length || 0;
   const totalUsed = user?.bouquet?.reduce((a, b) => a + (b.usedAccounts || 0), 0) || 0;
   const totalMax = user?.bouquet?.reduce((a, b) => a + b.maxAccounts, 0) || 0;
-  const remainingDays = user?.remainingDays ?? 0;
 
   return (
     <div className="space-y-8">
@@ -36,11 +70,11 @@ export default function ResellerDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
-            label: 'Jours Restants',
-            value: remainingDays,
+            label: 'Temps Restant',
+            value: countdown,
             icon: Calendar,
-            sub: 'sur votre compte revendeur',
-            showProgress: false,
+            sub: 'décompte en temps réel (serveur)',
+            small: true,
           },
           { label: 'Protocoles', value: bouquetCount, icon: Zap, sub: 'dans votre bouquet' },
           { label: 'Comptes Créés', value: totalUsed, icon: TrendingUp, sub: `/ ${totalMax} max` },
@@ -106,7 +140,7 @@ export default function ResellerDashboard() {
           {recentClients.length > 0 ? (
             recentClients.map((client, i) => {
               // Use server time (unix seconds) for active status check
-              const expiresUnix = client.expires_at ? Math.floor(new Date(client.expires_at).getTime() / 1000) : 0;
+              const expiresUnix = expiryToUnix(client.expires_at);
               const now = serverUnix ?? Math.floor(Date.now() / 1000);
               const isActive = client.status === 'active' && expiresUnix > now;
               return (

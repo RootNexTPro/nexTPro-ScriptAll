@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { expiryToUnix } from '@/lib/utils';
 import { formatConfig } from '@/lib/config-formatter';
 import ConfigOutput from '@/components/ConfigOutput';
-import { Search, Trash2, RefreshCw, Eye, X } from 'lucide-react';
+import { Search, Trash2, RefreshCw, Eye, X, MinusCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProtocolType } from '@/lib/types';
 
@@ -22,6 +23,8 @@ export default function ResellerAccounts() {
   const [loadingList, setLoadingList] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [renewingId, setRenewingId] = useState<string | null>(null);
+  // Server time (unix seconds) fetched once and used for display
+  const [serverUnix, setServerUnix] = useState<number | null>(null);
 
   // Detail modal
   const [detailClient, setDetailClient] = useState<Client | null>(null);
@@ -29,6 +32,9 @@ export default function ResellerAccounts() {
   const [renewDays, setRenewDays] = useState('30');
   const [renewLoading, setRenewLoading] = useState(false);
   const [renewError, setRenewError] = useState('');
+  const [reduceDays, setReduceDays] = useState('1');
+  const [reduceLoading, setReduceLoading] = useState(false);
+  const [reduceError, setReduceError] = useState('');
   const [configText, setConfigText] = useState('');
   const [configLoading, setConfigLoading] = useState(false);
 
@@ -41,7 +47,20 @@ export default function ResellerAccounts() {
     setLoadingList(false);
   }, []);
 
-  useEffect(() => { loadAccounts(); }, [loadAccounts]);
+  useEffect(() => {
+    loadAccounts();
+    // Fetch server time once so status display uses server clock, not client clock
+    api.getServerTime()
+      .then(({ unix }) => setServerUnix(unix))
+      .catch(() => {});
+  }, [loadAccounts]);
+
+  // Server-time-based active check — immune to client clock manipulation
+  const isActive = (client: Client) => {
+    const expiresUnix = expiryToUnix(client.expires_at);
+    const now = serverUnix ?? Math.floor(Date.now() / 1000);
+    return client.status === 'active' && expiresUnix > now;
+  };
 
   const handleDelete = async (id: string) => {
     try {
@@ -65,7 +84,9 @@ export default function ResellerAccounts() {
     setDetailClient(null);
     setConfigText('');
     setRenewError('');
+    setReduceError('');
     setRenewDays('30');
+    setReduceDays('1');
     try {
       const data = await api.getClient(id);
       setDetailClient(data);
@@ -101,21 +122,32 @@ export default function ResellerAccounts() {
     try {
       const result = await api.renewClient(detailClient.id, days);
       await loadAccounts();
-      setDetailClient(prev => prev ? { ...prev, expires_at: result.expires_at || prev.expires_at } : null);
+      setDetailClient(prev => prev ? { ...prev, expires_at: result.expires_at || prev.expires_at, status: 'active' } : null);
     } catch (e: any) {
       setRenewError(e.message || 'Erreur lors du renouvellement');
     }
     setRenewLoading(false);
   };
 
+  const handleDetailReduce = async () => {
+    if (!detailClient) return;
+    const days = parseInt(reduceDays) || 1;
+    if (days < 1) { setReduceError('Durée invalide'); return; }
+    setReduceLoading(true);
+    setReduceError('');
+    try {
+      const result = await api.reduceClientDays(detailClient.id, days);
+      await loadAccounts();
+      setDetailClient(prev => prev ? { ...prev, expires_at: result.expires_at || prev.expires_at, status: result.status || prev.status } : null);
+    } catch (e: any) {
+      setReduceError(e.message || 'Erreur lors de la réduction');
+    }
+    setReduceLoading(false);
+  };
+
   const filtered = accounts.filter(a =>
     a.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  // Display status: account is active if both the status field is active AND the expiry date has not passed.
-  // Note: security-critical expiry enforcement is server-side; this is display-only.
-  const isActive = (client: Client) =>
-    client.status === 'active' && new Date(client.expires_at) > new Date();
 
   return (
     <div className="space-y-6">
@@ -275,6 +307,38 @@ export default function ResellerAccounts() {
                       >
                         {renewLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                         Renouveler
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Reduce days */}
+                  <div className="border border-border rounded-xl p-4 space-y-3">
+                    <h3 className="text-sm font-display font-semibold text-foreground">➖ Réduire la durée</h3>
+                    {reduceError && (
+                      <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded px-3 py-2">{reduceError}</p>
+                    )}
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <select
+                          value={reduceDays}
+                          onChange={e => setReduceDays(e.target.value)}
+                          className="input-dark w-full"
+                        >
+                          <option value="1">1 Jour</option>
+                          <option value="7">7 Jours</option>
+                          <option value="15">15 Jours</option>
+                          <option value="30">30 Jours</option>
+                          <option value="60">60 Jours</option>
+                          <option value="90">90 Jours</option>
+                        </select>
+                      </div>
+                      <button
+                        onClick={handleDetailReduce}
+                        disabled={reduceLoading}
+                        className="btn-ghost border border-warning/30 text-warning hover:bg-warning/10 flex items-center gap-2"
+                      >
+                        {reduceLoading ? <MinusCircle className="w-4 h-4 animate-spin" /> : <MinusCircle className="w-4 h-4" />}
+                        Réduire
                       </button>
                     </div>
                   </div>

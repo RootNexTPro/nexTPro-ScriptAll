@@ -856,6 +856,17 @@ function ntw_update() {
 
   log_info "Nettoyage et redémarrage du service..."
   rm -rf "$tmp_src"
+
+  # Update the watchdog script (in case it changed)
+  if [ -f "$NEXUS_WEB_DIR/install.sh" ]; then
+    bash "$NEXUS_WEB_DIR/install.sh" --watchdog-only 2>/dev/null || true
+  fi
+  # Ensure watchdog cron exists
+  if [ ! -f /etc/cron.d/nexus-web-watchdog ]; then
+    echo "* * * * * root /usr/local/bin/nexus-web-watchdog.sh" > /etc/cron.d/nexus-web-watchdog
+    chmod 644 /etc/cron.d/nexus-web-watchdog
+  fi
+
   systemctl restart "$SERVICE"
   sleep 2
 

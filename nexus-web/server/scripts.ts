@@ -170,6 +170,26 @@ export function deleteSshAccount(username: string): AccountResult {
   }
 }
 
+export function setSshAccountExpiry(username: string, date: string): AccountResult {
+  try {
+    validateUsername(username);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new Error('Invalid date format, expected YYYY-MM-DD');
+    }
+    const check = spawnSync('id', [username], { encoding: 'utf8' });
+    if (check.status !== 0) {
+      return { success: false, error: `User '${username}' not found` };
+    }
+    const result = spawnSync('chage', ['-E', date, username], { encoding: 'utf8' });
+    if (result.status !== 0) {
+      return { success: false, error: `chage failed: ${result.stderr?.trim() || 'unknown error'}` };
+    }
+    return { success: true, data: { username, expiry: date } };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+
 export function suspendSshAccount(username: string): AccountResult {
   try {
     validateUsername(username);

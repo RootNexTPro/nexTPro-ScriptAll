@@ -15,6 +15,13 @@ export function getDb(): Database.Database {
     db = new Database(DB_PATH);
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
+    // Allow up to 10 s of retries when another writer holds the lock
+    // (prevents "database is locked" crashes during heavy concurrent use)
+    db.pragma('busy_timeout = 10000');
+    // Faster fsync without sacrificing crash safety (WAL already protects us)
+    db.pragma('synchronous = NORMAL');
+    // Keep temp tables in memory for faster queries
+    db.pragma('temp_store = MEMORY');
     initSchema();
   }
   return db;

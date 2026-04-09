@@ -103,7 +103,10 @@ main() {
   # ── Install system dependencies ──
   log_info "Installing system dependencies..."
   apt-get update -y -q >/dev/null 2>&1
-  apt-get install -y -q curl git build-essential python3 make >/dev/null 2>&1
+  apt-get install -y -q curl git build-essential python3 make chrony >/dev/null 2>&1
+  # Ensure chrony is running so the server clock is always accurate
+  systemctl enable chrony --now 2>/dev/null || systemctl enable chronyd --now 2>/dev/null || true
+  log_ok "System dependencies installed. NTP (chrony) enabled."
   install_nodejs
 
   # ── Copy source files ──
@@ -176,6 +179,8 @@ WorkingDirectory=$NEXUS_WEB_DIR
 ExecStart=/usr/bin/node $NEXUS_WEB_DIR/dist/server/index.js
 Restart=always
 RestartSec=5
+StartLimitBurst=10
+StartLimitIntervalSec=60
 Environment=NODE_ENV=production
 Environment=NEXUS_CONFIG=$CONFIG_FILE
 Environment=NEXUS_DB_DIR=$CONFIG_DIR
@@ -190,6 +195,36 @@ WantedBy=multi-user.target
 SVC
 
   chmod 600 "$SERVICE_FILE"
+
+  # ── External health watchdog ──
+  # If the Node.js process hangs (event loop blocked) and doesn't respond,
+  # this cron restarts the service automatically (runs every minute).
+  cat > /usr/local/bin/nexus-web-watchdog.sh <<'WATCHDOG'
+#!/bin/bash
+CONFIG_FILE="/etc/nexus-tunnel-web/config.json"
+# Extract port from config using grep + awk (no Python required)
+PORT=$(grep -o '"port"[[:space:]]*:[[:space:]]*[0-9]*' "$CONFIG_FILE" 2>/dev/null | awk -F: '{gsub(/[^0-9]/,"",$2); print $2}')
+[ -z "$PORT" ] && PORT=2087
+FAIL_COUNT_FILE="/tmp/.nexus-web-watchdog-fails"
+if curl -sf --max-time 8 "http://localhost:${PORT}/api/health" > /dev/null 2>&1; then
+  rm -f "$FAIL_COUNT_FILE"
+else
+  count=$(cat "$FAIL_COUNT_FILE" 2>/dev/null || echo 0)
+  count=$((count + 1))
+  echo "$count" > "$FAIL_COUNT_FILE"
+  if [ "$count" -ge 3 ]; then
+    echo "[$(date -u)] Health check failed ${count} times — restarting nexus-web" >> /var/log/nexus-web-watchdog.log
+    systemctl restart nexus-web
+    rm -f "$FAIL_COUNT_FILE"
+  fi
+fi
+WATCHDOG
+  chmod 755 /usr/local/bin/nexus-web-watchdog.sh
+
+  # Install cron job (runs every minute)
+  echo "* * * * * root /usr/local/bin/nexus-web-watchdog.sh" > /etc/cron.d/nexus-web-watchdog
+  chmod 644 /etc/cron.d/nexus-web-watchdog
+  log_ok "Health watchdog cron installed (/etc/cron.d/nexus-web-watchdog)"
 
   # ── Enable and start service ──
   systemctl daemon-reload
