@@ -78,18 +78,98 @@ function setup_fastdns() {
     SERVICE_FILE=$(fd_get_dnstt_service)
     echo -e " ${GR}-> Service found: $SERVICE_FILE${NC}"
 
-    # ── 2. Verify XHTTP inbound present in config.json ──
+    # ── 2. Add XHTTP and WS inbounds if not already in config.json ──
     echo -e "\n${LN}[2/5]${NC} Checking Xray XHTTP inbound (port $FD_XHTTP_PORT)..."
     if ! fd_xhttp_inbound_present; then
-        echo -e " ${RD}[ERROR] XHTTP inbound not found in $XRAY_CONF${NC}"
-        echo -e " ${RD}        Your Xray config is outdated. Please re-run the Xray${NC}"
-        echo -e " ${RD}        installation or re-download the config from the repo.${NC}"
-        echo ""
-        read -n 1 -s -r -p "  Press any key to return..."
-        fastdns_menu
-        return
+        echo -e " ${GR}-> XHTTP inbound not found — injecting into $XRAY_CONF...${NC}"
+        python3 - "$XRAY_CONF" "$FD_XHTTP_PORT" "$FD_WS_PORT" <<'PYEOF'
+import sys, re
+
+path  = sys.argv[1]
+xport = sys.argv[2]
+wport = sys.argv[3]
+
+with open(path, 'r') as f:
+    lines = f.readlines()
+
+# Find the closing "]," of the inbounds array (the line just before "outbounds")
+insert_idx = None
+for i in range(len(lines) - 1, -1, -1):
+    if re.match(r'^\s*\],?\s*$', lines[i]) and i + 1 < len(lines) and '"outbounds"' in lines[i + 1]:
+        insert_idx = i
+        break
+
+if insert_idx is None:
+    print("ERROR: Could not find end of inbounds array", file=sys.stderr)
+    sys.exit(1)
+
+# Add a trailing comma to the closing brace of the current last inbound
+prev_idx = insert_idx - 1
+lines[prev_idx] = lines[prev_idx].rstrip().rstrip(',') + ',\n'
+
+template = (
+    '    {\n'
+    '      "listen": "127.0.0.1",\n'
+    '      "port": "XPORT",\n'
+    '      "protocol": "vless",\n'
+    '      "settings": {\n'
+    '        "decryption": "none",\n'
+    '        "clients": [\n'
+    '          {\n'
+    '            "id": "22f5a909-37d9-4174-aa54-1e503ad7e523"\n'
+    '#fastdns\n'
+    '          }\n'
+    '        ]\n'
+    '      },\n'
+    '      "streamSettings": {\n'
+    '        "network": "xhttp",\n'
+    '        "xhttpSettings": {\n'
+    '          "path": "/fastdns",\n'
+    '          "mode": "stream-one"\n'
+    '        }\n'
+    '      }\n'
+    '    },\n'
+    '    {\n'
+    '      "listen": "127.0.0.1",\n'
+    '      "port": "WPORT",\n'
+    '      "protocol": "vless",\n'
+    '      "settings": {\n'
+    '        "decryption": "none",\n'
+    '        "clients": [\n'
+    '          {\n'
+    '            "id": "22f5a909-37d9-4174-aa54-1e503ad7e523"\n'
+    '#fastdnsws\n'
+    '          }\n'
+    '        ]\n'
+    '      },\n'
+    '      "streamSettings": {\n'
+    '        "network": "ws",\n'
+    '        "wsSettings": {\n'
+    '          "path": "/fastdns-ws"\n'
+    '        }\n'
+    '      }\n'
+    '    }\n'
+)
+
+new_blocks = template.replace('XPORT', xport).replace('WPORT', wport)
+lines.insert(insert_idx, new_blocks)
+
+with open(path, 'w') as f:
+    f.writelines(lines)
+
+print("Fast DNS inbounds injected successfully.")
+PYEOF
+        if ! fd_xhttp_inbound_present; then
+            echo -e " ${RD}[ERROR] Failed to inject XHTTP inbound into $XRAY_CONF${NC}"
+            echo ""
+            read -n 1 -s -r -p "  Press any key to return..."
+            fastdns_menu
+            return
+        fi
+        echo -e " ${GR}-> XHTTP and WS inbounds injected successfully${NC}"
+    else
+        echo -e " ${GR}-> XHTTP inbound OK (port $FD_XHTTP_PORT)${NC}"
     fi
-    echo -e " ${GR}-> XHTTP inbound OK (port $FD_XHTTP_PORT)${NC}"
 
     # ── 3. Install SSLH multiplexer ──
     echo -e "\n${LN}[3/5]${NC} Installing SSLH protocol multiplexer..."
