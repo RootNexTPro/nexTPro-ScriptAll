@@ -891,15 +891,17 @@ function restart_fastdns() {
     echo -e "${LN}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${NC}"
     echo -e "${LN}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${NC}"
 
-    # Reset any failed units so they can be restarted
-    systemctl reset-failed 2>/dev/null
+    # Clear any failed-unit flags and reload service definitions for all units
+    if ! systemctl reset-failed 2>/dev/null; then
+        echo -e "${LN}┃${NC} ${RD}[WARN] systemctl reset-failed failed — continuing anyway${NC}"
+    fi
+    systemctl daemon-reload 2>/dev/null
 
     # Restart dnstt / slowdns tunnel
     local DNSTT_SVC_FILE svc_name
     DNSTT_SVC_FILE=$(fd_get_dnstt_service)
     if [[ -n "$DNSTT_SVC_FILE" ]]; then
         svc_name=$(basename "${DNSTT_SVC_FILE%.service}")
-        systemctl daemon-reload
         systemctl restart "$svc_name" 2>/dev/null
         local st
         st=$(systemctl is-active "$svc_name" 2>/dev/null); [[ -z "$st" ]] && st="inactive"
