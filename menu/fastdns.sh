@@ -113,7 +113,7 @@ if prev_idx >= 0 and re.search(r'\}', lines[prev_idx]):
 template = (
     '    {\n'
     '      "listen": "127.0.0.1",\n'
-    '      "port": "XPORT",\n'
+    '      "port": XPORT,\n'
     '      "protocol": "vless",\n'
     '      "settings": {\n'
     '        "decryption": "none",\n'
@@ -134,7 +134,7 @@ template = (
     '    },\n'
     '    {\n'
     '      "listen": "127.0.0.1",\n'
-    '      "port": "WPORT",\n'
+    '      "port": WPORT,\n'
     '      "protocol": "vless",\n'
     '      "settings": {\n'
     '        "decryption": "none",\n'
@@ -764,16 +764,16 @@ function status_fastdns() {
     clear
     local sslh_st dnstt_st nginx_st xray_st sslh_cfg
 
-    sslh_st=$(systemctl is-active sslh 2>/dev/null || echo "inactive")
-    nginx_st=$(systemctl is-active nginx 2>/dev/null || echo "inactive")
-    xray_st=$(systemctl is-active xray 2>/dev/null || echo "inactive")
+    sslh_st=$(systemctl is-active sslh 2>/dev/null); [[ -z "$sslh_st" ]] && sslh_st="inactive"
+    nginx_st=$(systemctl is-active nginx 2>/dev/null); [[ -z "$nginx_st" ]] && nginx_st="inactive"
+    xray_st=$(systemctl is-active xray 2>/dev/null); [[ -z "$xray_st" ]] && xray_st="inactive"
 
     local DNSTT_SVC_FILE
     DNSTT_SVC_FILE=$(fd_get_dnstt_service)
     if [[ -n "$DNSTT_SVC_FILE" ]]; then
         local svc_name
         svc_name=$(basename "${DNSTT_SVC_FILE%.service}")
-        dnstt_st=$(systemctl is-active "$svc_name" 2>/dev/null || echo "inactive")
+        dnstt_st=$(systemctl is-active "$svc_name" 2>/dev/null); [[ -z "$dnstt_st" ]] && dnstt_st="inactive"
     else
         dnstt_st="not installed"
     fi
@@ -880,6 +880,73 @@ function uninstall_fastdns() {
     fastdns_menu
 }
 
+# ─── 10. RESTART FAST DNS SERVICES ───────────────────────────────────────────
+# Resets any failed units then restarts dnstt, SSLH, Nginx, and Xray so the
+# full Fast DNS stack comes back online without needing a full re-setup.
+
+function restart_fastdns() {
+    clear
+    echo -e "${LN}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${NC}"
+    echo -e "${LN}┃${NC} ${BG}         RESTART FAST DNS SERVICES              ${NC} ${LN}┃${NC}"
+    echo -e "${LN}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${NC}"
+    echo -e "${LN}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${NC}"
+
+    # Reset any failed units so they can be restarted
+    systemctl reset-failed 2>/dev/null
+
+    # Restart dnstt / slowdns tunnel
+    local DNSTT_SVC_FILE svc_name
+    DNSTT_SVC_FILE=$(fd_get_dnstt_service)
+    if [[ -n "$DNSTT_SVC_FILE" ]]; then
+        svc_name=$(basename "${DNSTT_SVC_FILE%.service}")
+        systemctl daemon-reload
+        systemctl restart "$svc_name" 2>/dev/null
+        local st
+        st=$(systemctl is-active "$svc_name" 2>/dev/null); [[ -z "$st" ]] && st="inactive"
+        if [[ "$st" == "active" ]]; then
+            echo -e "${LN}┃${NC} dnstt ($svc_name)  : ${GR}RUNNING${NC}"
+        else
+            echo -e "${LN}┃${NC} dnstt ($svc_name)  : ${RD}${st}${NC}"
+            echo -e "${LN}┃${NC}   ${RD}Check: journalctl -u $svc_name -n 20${NC}"
+        fi
+    else
+        echo -e "${LN}┃${NC} dnstt  : ${RD}not installed${NC}"
+    fi
+
+    # Restart SSLH
+    systemctl restart sslh 2>/dev/null
+    local sslh_st
+    sslh_st=$(systemctl is-active sslh 2>/dev/null); [[ -z "$sslh_st" ]] && sslh_st="inactive"
+    [[ "$sslh_st" == "active" ]] \
+        && echo -e "${LN}┃${NC} SSLH   : ${GR}RUNNING${NC}" \
+        || echo -e "${LN}┃${NC} SSLH   : ${RD}${sslh_st}${NC}"
+
+    # Restart Nginx
+    systemctl restart nginx 2>/dev/null
+    local nginx_st
+    nginx_st=$(systemctl is-active nginx 2>/dev/null); [[ -z "$nginx_st" ]] && nginx_st="inactive"
+    [[ "$nginx_st" == "active" ]] \
+        && echo -e "${LN}┃${NC} Nginx  : ${GR}RUNNING${NC}" \
+        || echo -e "${LN}┃${NC} Nginx  : ${RD}${nginx_st}${NC}"
+
+    # Restart Xray
+    systemctl restart xray 2>/dev/null
+    local xray_st
+    xray_st=$(systemctl is-active xray 2>/dev/null); [[ -z "$xray_st" ]] && xray_st="inactive"
+    if [[ "$xray_st" == "active" ]]; then
+        echo -e "${LN}┃${NC} Xray   : ${GR}RUNNING${NC}"
+    else
+        echo -e "${LN}┃${NC} Xray   : ${RD}${xray_st}${NC}"
+        echo -e "${LN}┃${NC}   ${RD}Check: journalctl -u xray -n 20${NC}"
+    fi
+
+    echo -e "${LN}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${NC}"
+    echo -e "${LN}●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━●${NC}"
+    echo ""
+    read -n 1 -s -r -p "  Press any key to return..."
+    fastdns_menu
+}
+
 # ─── MAIN MENU ────────────────────────────────────────────────────────────────
 
 function fastdns_menu() {
@@ -917,7 +984,7 @@ function fastdns_menu() {
     echo -e "${LN}┃${NC} [02] • Create Account     [07] • Active Users"
     echo -e "${LN}┃${NC} [03] • Renew Account      [08] • Status"
     echo -e "${LN}┃${NC} [04] • Delete Account     [09] • Uninstall"
-    echo -e "${LN}┃${NC} [05] • List Accounts"
+    echo -e "${LN}┃${NC} [05] • List Accounts      [10] • Restart Services"
     echo -e "${LN}┃${NC}"
     echo -e "${LN}┃${NC} [00] • Back to Main Menu"
     echo -e "${LN}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${NC}"
@@ -935,6 +1002,7 @@ function fastdns_menu() {
     7|07) clear ; active_fastdns ;;
     8|08) clear ; status_fastdns ;;
     9|09) clear ; uninstall_fastdns ;;
+    10)   clear ; restart_fastdns ;;
     0|00) clear ; menu ;;
     *)
         echo -e "${RD} [ERROR] Invalid selection!${NC}"
