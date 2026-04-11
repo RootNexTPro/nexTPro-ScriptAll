@@ -79,7 +79,7 @@ echo -e "${LN}┃${NC} [07] • DNS PANEL          [11] • NETGUARD PANEL"
 echo -e "${LN}┃${NC} [08] • DOMAIN PANEL       [12] • VPN PORT INFO"
 echo -e "${LN}┃${NC} [09] • IPV6 PANEL         [13] • CLEAN VPS LOGS"
 echo -e "${LN}┃${NC} [10] • VPS STATUS         [14] • NEXUS BOT PANEL"
-echo -e "${LN}┃${NC} [15] • UNINSTALL NEXUS"
+echo -e "${LN}┃${NC} [15] • UNINSTALL NEXUS    [16] • FAST DNS MENU"
 echo -e "${LN}┃${NC}"
 echo -e "${LN}┃${NC} [00] • EXIT               [88] • REBOOT VPS"
 echo -e "${LN}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${NC}"
@@ -120,6 +120,7 @@ case $opt in
 13) clear ; log ;;
 14) clear ; tgbot ;;
 15) clear ; uninstall ;;
+16) clear ; fastdns ;;
 18) clear ; web ;;
 88) reboot ;;
 99) clear ; update ;;

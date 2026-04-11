@@ -12,7 +12,7 @@ echo -e "${LN}┗━━━━━━━━━━━━━━━━━━━━━
 echo -e "\n [*] Connexion au dépôt GitHub central..."
 echo -e " [*] Déploiement des modules..."
 
-MODULES=(dns zivpn expiry domain iptools menu socks ssh status trojan vless vmess netguard port log tgbot uninstall update)
+MODULES=(dns zivpn expiry domain iptools menu socks ssh status trojan vless vmess netguard port log tgbot uninstall update fastdns)
 
 for script in "${MODULES[@]}"; do
     wget -q -O "/usr/local/sbin/$script" "${SERVER_HOST}/menu/${script}.sh"

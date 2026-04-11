@@ -184,7 +184,7 @@ fi
 done
 }
 install_menu() {
-for script in dns zivpn expiry domain iptools menu socks ssh status trojan vless vmess netguard port log tgbot uninstall update web; do # blocker
+for script in dns zivpn expiry domain iptools menu socks ssh status trojan vless vmess netguard port log tgbot uninstall update web fastdns; do # blocker
 wget -q -O "/usr/local/sbin/$script" "${SERVER_HOST}/menu/${script}.sh"
 chmod +x "/usr/local/sbin/$script"
 done
