@@ -241,6 +241,47 @@
           "serviceName": "ss-grpc"
         }
       }
+    },
+    {
+      "listen": "127.0.0.1",
+      "port": "15000",
+      "protocol": "vless",
+      "settings": {
+        "decryption": "none",
+        "clients": [
+          {
+            "id": "22f5a909-37d9-4174-aa54-1e503ad7e523"
+#fastdns
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "xhttp",
+        "xhttpSettings": {
+          "path": "/fastdns",
+          "mode": "stream-one"
+        }
+      }
+    },
+    {
+      "listen": "127.0.0.1",
+      "port": "15001",
+      "protocol": "vless",
+      "settings": {
+        "decryption": "none",
+        "clients": [
+          {
+            "id": "22f5a909-37d9-4174-aa54-1e503ad7e523"
+#fastdnsws
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/fastdns-ws"
+        }
+      }
     }
   ],
   "outbounds": [
