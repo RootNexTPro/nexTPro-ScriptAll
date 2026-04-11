@@ -145,9 +145,11 @@ EOF
         cp "$SERVICE_FILE" "${SERVICE_FILE}.bak"
         echo -e " ${GR}-> Backup saved: ${SERVICE_FILE}.bak${NC}"
     fi
-    # Replace any 127.0.0.1:PORT or localhost:PORT target with SSLH port
-    sed -i -E "s/127\.0\.0\.1:[0-9]+/127.0.0.1:$SSLH_LISTEN_PORT/g" "$SERVICE_FILE"
-    sed -i -E "s/localhost:[0-9]+/127.0.0.1:$SSLH_LISTEN_PORT/g" "$SERVICE_FILE"
+    # Replace only the destination address at the end of the ExecStart line
+    # (e.g. 127.0.0.1:22 or localhost:22 → 127.0.0.1:7777), leaving bind
+    # addresses like -udp :5300 untouched.
+    sed -i -E "/^ExecStart=/ s/127\.0\.0\.1:[0-9]+[[:space:]]*$/127.0.0.1:$SSLH_LISTEN_PORT/" "$SERVICE_FILE"
+    sed -i -E "/^ExecStart=/ s/localhost:[0-9]+[[:space:]]*$/127.0.0.1:$SSLH_LISTEN_PORT/" "$SERVICE_FILE"
     systemctl daemon-reload
     local DNSTT_SVC
     DNSTT_SVC=$(basename "$SERVICE_FILE")
@@ -416,11 +418,16 @@ function renew_fastdns() {
     exp=$(grep -wE "^#% $user" "$XRAY_CONF" | awk '{print $3}' | sort -u | head -1)
     uuid=$(grep -wE "^#% $user" "$XRAY_CONF" | awk '{print $4}' | sort -u | head -1)
     now=$(date +%Y-%m-%d)
-    d1=$(date -d "$exp" +%s 2>/dev/null || echo 0)
+    d1=$(date -d "$exp" +%s 2>/dev/null || echo "")
     d2=$(date -d "$now" +%s)
-    exp2=$(( (d1 - d2) / 86400 ))
-    exp3=$(( exp2 + masaaktif ))
-    exp4=$(date -d "$exp3 days" +"%Y-%m-%d")
+    if [[ -z "$d1" || "$d1" -le 0 ]]; then
+        # Expiry date is invalid or already past — extend from today
+        exp4=$(date -d "$masaaktif days" +"%Y-%m-%d")
+    else
+        exp2=$(( (d1 - d2) / 86400 ))
+        exp3=$(( exp2 + masaaktif ))
+        exp4=$(date -d "$exp3 days" +"%Y-%m-%d")
+    fi
 
     # Update both XHTTP and WS marker lines
     sed -i "/^#% $user /c\\#% $user $exp4 $uuid" "$XRAY_CONF"
@@ -773,7 +780,7 @@ function uninstall_fastdns() {
     echo -e " ${GR}-> Stopping and disabling SSLH...${NC}"
     systemctl stop sslh 2>/dev/null
     systemctl disable sslh 2>/dev/null
-    > /etc/default/sslh 2>/dev/null
+    rm -f /etc/default/sslh /etc/sslh/sslh.cfg 2>/dev/null
 
     clear
     echo -e "${LN}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${NC}"
