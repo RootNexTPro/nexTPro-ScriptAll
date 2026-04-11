@@ -92,7 +92,8 @@ wport = sys.argv[3]
 with open(path, 'r') as f:
     lines = f.readlines()
 
-# Find the closing "]," of the inbounds array (the line just before "outbounds")
+# Find the line that closes the inbounds array (matches "]," or "]") and
+# is immediately followed by the "outbounds" key, so we target the right array.
 insert_idx = None
 for i in range(len(lines) - 1, -1, -1):
     if re.match(r'^\s*\],?\s*$', lines[i]) and i + 1 < len(lines) and '"outbounds"' in lines[i + 1]:
@@ -103,9 +104,11 @@ if insert_idx is None:
     print("ERROR: Could not find end of inbounds array", file=sys.stderr)
     sys.exit(1)
 
-# Add a trailing comma to the closing brace of the current last inbound
+# Add a trailing comma to the closing brace of the current last inbound.
+# Guard against an empty inbounds array (prev line would be "[", not "}").
 prev_idx = insert_idx - 1
-lines[prev_idx] = lines[prev_idx].rstrip().rstrip(',') + ',\n'
+if prev_idx >= 0 and re.search(r'\}', lines[prev_idx]):
+    lines[prev_idx] = lines[prev_idx].rstrip().rstrip(',') + ',\n'
 
 template = (
     '    {\n'
