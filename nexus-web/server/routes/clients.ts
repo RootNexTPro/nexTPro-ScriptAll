@@ -373,6 +373,19 @@ router.post('/:id/reduce-days', requireAuth, (req: AuthRequest, res: Response): 
   }
 
   // Calculate new expiry by subtracting days from current expires_at (server time arithmetic)
+
+    // --- VALIDATION DE L'INTERVALLE (GARDE-FOU) ---
+    const timeCheck = db.prepare(
+      "SELECT CAST(JULIANDAY(expires_at) - JULIANDAY(datetime('now')) AS INTEGER) as remaining FROM clients WHERE id = ?"
+    ).get(req.params.id) as { remaining: number };
+
+    if (days > timeCheck.remaining) {
+      res.status(400).json({ 
+        error: `Action impossible : vous essayez de réduire ${days} jours, mais il ne reste que ${timeCheck.remaining} jours sur ce compte.` 
+      });
+      return;
+    }
+    // ----------------------------------------------
   const newExpiryRow = db.prepare("SELECT datetime(?, ?) as d").get(client.expires_at, `-${days} days`) as { d: string };
   const newExpiry = newExpiryRow.d;
 
