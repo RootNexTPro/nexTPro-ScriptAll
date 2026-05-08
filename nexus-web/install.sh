@@ -5,7 +5,7 @@
 #  creates systemd service and config.
 # ============================================================
 
-set -euo pipefail
+set -uo pipefail
 
 NEXUS_WEB_DIR="/opt/nexus-tunnel-web"
 CONFIG_DIR="/etc/nexus-tunnel-web"
