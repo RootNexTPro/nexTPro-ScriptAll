@@ -1,5 +1,5 @@
 MYIP=$(curl -sS ipv4.icanhazip.com)
-readonly SERVER_HOST="https://raw.githubusercontent.com/naomierachel031-lab/Clone-script-all-buddy/main"
+readonly SERVER_HOST="https://raw.githubusercontent.com/RootNexTPro/nexTPro-ScriptAll/main"
 clear
 LN='[34m'
 BG='[44m'

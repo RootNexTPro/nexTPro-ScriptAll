@@ -4,7 +4,7 @@ LN='\e[34m'
 NC='\e[0m'
 GR='\e[32m'
 RD='\e[31m'
-SERVER_HOST="https://raw.githubusercontent.com/naomierachel031-lab/Clone-script-all-buddy/main"
+SERVER_HOST="https://raw.githubusercontent.com/RootNexTPro/nexTPro-ScriptAll/main"
 
 echo -e "${LN}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${NC}"
 echo -e "${LN}┃${NC} ${GR}       MISE À JOUR OTA (OVER-THE-AIR)             ${NC}${LN}┃${NC}"
@@ -25,7 +25,7 @@ echo -e "${LN}┃${NC} ${GR}         MISE À JOUR NEXUS TUNNEL WEB            ${
 echo -e "${LN}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${NC}"
 
 NEXUS_WEB_DIR="/opt/nexus-tunnel-web"
-NEXUS_REPO_URL="https://github.com/naomierachel031-lab/Clone-script-all-buddy.git"
+NEXUS_REPO_URL="https://github.com/RootNexTPro/nexTPro-ScriptAll.git"
 NTW_TMP="$(mktemp -d)"
 
 if [ -d "$NEXUS_WEB_DIR" ] && [ -f "$NEXUS_WEB_DIR/dist/server/index.js" ]; then

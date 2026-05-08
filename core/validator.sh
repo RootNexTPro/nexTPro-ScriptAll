@@ -1,4 +1,4 @@
-export SERVER_HOST="https://raw.githubusercontent.com/naomierachel031-lab/Clone-script-all-buddy/main"
+export SERVER_HOST="https://raw.githubusercontent.com/RootNexTPro/nexTPro-ScriptAll/main"
 CONF_DIR="/etc/nginx"
 configure_nginx() {
 echo "Downloading nginx xray conf..."

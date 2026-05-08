@@ -1,5 +1,5 @@
 #!/bin/bash
-GITHUB_RAW="https://raw.githubusercontent.com/naomierachel031-lab/Clone-script-all-buddy/main"
+GITHUB_RAW="https://raw.githubusercontent.com/RootNexTPro/nexTPro-ScriptAll/main"
 
 echo "--- Nettoyage et arrêt des services conflictuels ---"
 systemctl stop nginx stunnel5 badvpn@7100 badvpn@7200 badvpn@7300 xray ssh 2>/dev/null
