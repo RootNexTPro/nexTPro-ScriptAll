@@ -22,7 +22,6 @@ export default function ResellerDashboard() {
   const [recentClients, setRecentClients] = useState<any[]>([]);
   const [serverUnix, setServerUnix] = useState<number | null>(null);
 
-  // Real-time countdown state — seeded from remaining_seconds (server-authoritative)
   const [countdown, setCountdown] = useState<string>('--');
   const remainingSecsRef = useRef<number | null>(null);
 
@@ -30,29 +29,42 @@ export default function ResellerDashboard() {
     api.listClients({ mine: true })
       .then(data => setRecentClients(data.slice(0, 5)))
       .catch(() => {});
-    // Fetch server time once for client status display
+    
+    // Récupération de l'heure absolue du VPS (Anti-triche)
     api.getServerTime()
       .then(({ unix }) => setServerUnix(unix))
       .catch(() => {});
   }, []);
 
-  // Seed countdown from server-authoritative remaining_seconds
+  // --- MOTEUR DE DÉCOMPTE SYNCHRONISÉ (CORRECTION) ---
   useEffect(() => {
-    if (user?.remainingSeconds != null) {
-      remainingSecsRef.current = user.remainingSeconds;
-      setCountdown(formatCountdown(user.remainingSeconds));
+    if (!user?.expiryDate) {
+      setCountdown('--');
+      return;
     }
-  }, [user?.remainingSeconds]);
+    
+    // On attend que l'heure du serveur soit récupérée
+    if (serverUnix === null) return; 
 
-  // Tick every second, decrementing from the server-seeded value
-  useEffect(() => {
-    if (remainingSecsRef.current === null) return;
+    // Calcul mathématique strict basé sur le backend
+    const expUnix = expiryToUnix(user.expiryDate);
+    const diff = expUnix - serverUnix;
+
+    // Initialisation du chrono
+    remainingSecsRef.current = diff > 0 ? diff : 0;
+    setCountdown(formatCountdown(remainingSecsRef.current));
+
+    // Tic-Tac asynchrone frontend
     const interval = setInterval(() => {
-      remainingSecsRef.current = Math.max(0, (remainingSecsRef.current ?? 0) - 1);
-      setCountdown(formatCountdown(remainingSecsRef.current));
+      if (remainingSecsRef.current !== null) {
+        remainingSecsRef.current = Math.max(0, remainingSecsRef.current - 1);
+        setCountdown(formatCountdown(remainingSecsRef.current));
+      }
     }, 1000);
+
     return () => clearInterval(interval);
-  }, [user?.remainingSeconds]); // re-init when server value refreshes
+  }, [user?.expiryDate, serverUnix]);
+  // ---------------------------------------------------
 
   const bouquetCount = user?.bouquet?.length || 0;
   const totalUsed = user?.bouquet?.reduce((a, b) => a + (b.usedAccounts || 0), 0) || 0;
@@ -97,7 +109,6 @@ export default function ResellerDashboard() {
         ))}
       </div>
 
-      {/* Bouquet Details */}
       {user?.bouquet && user.bouquet.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -139,7 +150,6 @@ export default function ResellerDashboard() {
         <div className="space-y-3">
           {recentClients.length > 0 ? (
             recentClients.map((client, i) => {
-              // Use server time (unix seconds) for active status check
               const expiresUnix = expiryToUnix(client.expires_at);
               const now = serverUnix ?? Math.floor(Date.now() / 1000);
               const isActive = client.status === 'active' && expiresUnix > now;
