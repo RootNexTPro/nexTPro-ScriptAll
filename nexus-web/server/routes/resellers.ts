@@ -64,7 +64,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response): Promise<v
     return;
   }
   const db = getDb();
-  const expiryDate = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d;
+  const expiryDate = (db.prepare("SELECT datetime('now', ?) as d").get(`+${days} days`) as { d: string }).d;
 
   const normalizedBouquet = Array.isArray(bouquet) ? bouquet : [];
   const seen = new Set<string>();
@@ -206,7 +206,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res: Response): Promise
       res.status(400).json({ error: 'duration_days must be between 1 and 3650' });
       return;
     }
-    const newExpiry = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d;
+    const newExpiry = (db.prepare("SELECT datetime('now', ?) as d").get(`+${days} days`) as { d: string }).d;
     // When an admin explicitly sets a new expiry, the reseller is intentionally re-authorized
     // (clears any prior suspension from auto-expiry and resets suspended_at).
     updates.push('expiry_date = ?', 'suspended_at = NULL', "status = 'active'");

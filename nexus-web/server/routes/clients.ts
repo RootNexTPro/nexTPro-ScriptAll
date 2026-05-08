@@ -37,7 +37,7 @@ function getResellerState(adminId: string): {
   const db = getDb();
   // Enforce reseller expiry_date on the server side so changing client time has no effect
   const row = db.prepare(
-    "SELECT bouquet, expiry_date FROM admins WHERE id = ? AND role = 'reseller' AND status = 'active' AND (expiry_date IS NULL OR expiry_date >= date('now'))"
+    "SELECT bouquet, expiry_date FROM admins WHERE id = ? AND role = 'reseller' AND status = 'active' AND (expiry_date IS NULL OR expiry_date >= datetime('now'))"
   ).get(adminId) as { bouquet?: string; expiry_date?: string } | undefined;
 
   if (!row) return null;
@@ -52,7 +52,7 @@ function getResellerState(adminId: string): {
   let remainingDays = 9999; // unlimited if no expiry
   if (row.expiry_date) {
     const result = db.prepare(
-      "SELECT CAST(JULIANDAY(?) - JULIANDAY(date('now')) AS INTEGER) as days"
+      "SELECT CAST(JULIANDAY(?) - JULIANDAY(datetime('now')) AS INTEGER) as days"
     ).get(row.expiry_date) as { days: number };
     remainingDays = Math.max(0, result.days);
   }
@@ -189,7 +189,7 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
     return;
   }
 
-  const expiresAt = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d;
+  const expiresAt = (db.prepare("SELECT datetime('now', ?) as d").get(`+${days} days`) as { d: string }).d;
   const id = uuidv4();
 
   try {
@@ -306,7 +306,7 @@ router.post('/:id/renew', requireAuth, (req: AuthRequest, res: Response): void =
     return;
   }
 
-  const newExpiry = (db.prepare("SELECT date('now', ?) as d").get(`+${days} days`) as { d: string }).d;
+  const newExpiry = (db.prepare("SELECT datetime('now', ?) as d").get(`+${days} days`) as { d: string }).d;
   db.prepare("UPDATE clients SET expires_at = ?, status = 'active', updated_at = datetime('now') WHERE id = ?")
     .run(newExpiry, req.params.id);
 
@@ -373,11 +373,11 @@ router.post('/:id/reduce-days', requireAuth, (req: AuthRequest, res: Response): 
   }
 
   // Calculate new expiry by subtracting days from current expires_at (server time arithmetic)
-  const newExpiryRow = db.prepare("SELECT date(?, ?) as d").get(client.expires_at, `-${days} days`) as { d: string };
+  const newExpiryRow = db.prepare("SELECT datetime(?, ?) as d").get(client.expires_at, `-${days} days`) as { d: string };
   const newExpiry = newExpiryRow.d;
 
   // Check if new expiry is already in the past (server date)
-  const isExpired = (db.prepare("SELECT ? < date('now') as expired").get(newExpiry) as { expired: number }).expired;
+  const isExpired = (db.prepare("SELECT ? <= datetime('now') as expired").get(newExpiry) as { expired: number }).expired;
 
   // Update system account expiry for SSH-based protocols
   if (['ssh', 'slowdns', 'udpcustom'].includes(client.protocol)) {
