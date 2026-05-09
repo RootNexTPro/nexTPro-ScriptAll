@@ -70,11 +70,10 @@ export default function ResellerAccounts() {
     } catch {}
   };
 
-  const handleRenew = async (id: string) => {
-    setRenewingId(id);
+  const handleRefreshData = async (id: string) => {
+    setRenewingId(id); // On garde cet état uniquement pour déclencher l'animation de rotation
     try {
-      await api.renewClient(id, 30);
-      await loadAccounts();
+      await loadAccounts(); // Met à jour l'affichage avec les données fraîches du backend
     } catch {}
     setRenewingId(null);
   };
@@ -208,10 +207,10 @@ export default function ResellerAccounts() {
                     <Eye className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => handleRenew(acc.id)}
+                    onClick={() => handleRefreshData(acc.id)}
                     disabled={renewingId === acc.id}
                     className="p-2 rounded-lg hover:bg-primary/10 text-primary transition-colors"
-                    title="Renouveler 30j"
+                    title="Rafraîchir le statut"
                   >
                     <RefreshCw className={`w-4 h-4 ${renewingId === acc.id ? 'animate-spin' : ''}`} />
                   </button>
