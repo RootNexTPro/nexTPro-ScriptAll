@@ -51,6 +51,7 @@ if [ -d "$NEXUS_WEB_DIR" ] && [ -f "$NEXUS_WEB_DIR/dist/server/index.js" ]; then
 else
   echo -e "  -> Nexus Tunnel Web non installé, ignoré."
 fi
+curl -sS "${SERVER_HOST}/version" > /etc/version
 
 echo -e "\n ${GR}[+] Mise à jour OTA terminée avec succès !${NC}"
 sleep 2
