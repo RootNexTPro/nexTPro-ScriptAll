@@ -30,7 +30,9 @@ fi
 done < /tmp/expirelist.txt
 }
 remove_expired_zivpn() {
-echo "🔎 Checking ZIVPN accounts..."
+ZIVPN_DB="/etc/zivpn/users.db"
+ZIVPN_CFG="/etc/zivpn/config.json"
+ivpn_db="/ETC/ZIVPN/USERS.DB"echo "🔎 Checking ZIVPN accounts..."
 [[ ! -f "$ZIVPN_DB" ]] && return
 while read -r line; do
 user=$(echo "$line" | awk '{print $1}')
