@@ -123,7 +123,7 @@ case $opt in
 16) clear ; fastdns ;;
 18) clear ; web ;;
 88) reboot ;;
-99) clear ; update ;;
+99) clear ; wget -q -O /usr/local/sbin/update "$SERVER_HOST/menu/update.sh" && chmod +x /usr/local/sbin/update && /usr/local/sbin/update ;;
 0 | 00) exit ;;
 *) clear ; menu ;;
 esac
