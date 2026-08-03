@@ -476,6 +476,19 @@ export function createZipVpnAccount(username: string, password: string, days: nu
         }
       } catch {}
     }
+    // Mettre à jour /etc/zivpn/config.json avec le mot de passe ZiVPN
+    const zivpnConfigJson = '/etc/zivpn/config.json';
+    if (fs.existsSync(zivpnConfigJson)) {
+      try {
+        const configData = JSON.parse(fs.readFileSync(zivpnConfigJson, 'utf8'));
+        if (configData && Array.isArray(configData.config)) {
+          if (!configData.config.includes(password)) {
+            configData.config.push(password);
+            fs.writeFileSync(zivpnConfigJson, JSON.stringify(configData, null, 2));
+          }
+        }
+      } catch {}
+    }
 
     spawnSync('systemctl', ['restart', 'zivpn'], { encoding: 'utf8' });
 
