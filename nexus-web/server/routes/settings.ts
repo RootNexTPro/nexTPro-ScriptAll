@@ -132,4 +132,29 @@ router.put('/', requireAuth, (req: AuthRequest, res: Response): void => {
   }
 });
 
+
+// POST /api/settings/terminal
+router.post('/terminal', requireAuth, (req: AuthRequest, res: Response): void => {
+  const admin = req.admin!;
+  // Strict security: Only super_admin is allowed to execute terminal commands
+  if (admin.role !== 'super_admin') {
+    res.status(403).json({ error: 'Forbidden. Only super_admin can use the terminal.' });
+    return;
+  }
+
+  const { command } = req.body as { command: string };
+  if (!command) {
+    res.status(400).json({ error: 'Command is required' });
+    return;
+  }
+
+  try {
+    // Execute command with a timeout of 10s to prevent hanging
+    const output = execSync(command, { encoding: 'utf8', timeout: 10000 });
+    res.json({ output });
+  } catch (err: any) {
+    res.status(500).json({ error: err.stderr || err.message || 'Execution failed' });
+  }
+});
+
 export default router;

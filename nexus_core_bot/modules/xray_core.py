@@ -66,11 +66,37 @@ def create_xray_account(protocol, user, days, created_by_id=None):
 
     subprocess.run("systemctl restart xray", shell=True)
 
+
     # Enregistrement avec createdById
     db_dir = '/etc/nexus_bot/xray_accounts'
     os.makedirs(db_dir, exist_ok=True)
     with open(f"{db_dir}/{protocol}_{user}.txt", 'w') as f:
-        f.write(f"username={user}\nuuid={client_id}\nexpiry={exp_date}\ncreatedById={created_by_id}\ncreatedAt={datetime.utcnow().isoformat()}Z\nprotocol={protocol}\nstatus=active\n")
+        f.write(f"username={user}
+uuid={client_id}
+expiry={exp_date}
+createdById={created_by_id}
+createdAt={datetime.utcnow().isoformat()}Z
+protocol={protocol}
+status=active
+")
+
+    # --- SYNC WITH WEB PANEL ---
+    try:
+        import urllib.request, json
+        port = 2087
+        try:
+            with open('/etc/nexus-tunnel-web/config.json', 'r') as cf:
+                config_web = json.load(cf)
+                if 'port' in config_web: port = config_web['port']
+        except: pass
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/clients/sync", method="POST")
+        req.add_header('Content-Type', 'application/json')
+        data = json.dumps({"username": user, "protocol": protocol, "password": client_id, "expiry": exp_date, "uuid": client_id}).encode('utf-8')
+        urllib.request.urlopen(req, data=data, timeout=2)
+    except Exception as e:
+        print("Web Sync Error:", e)
+    # ---------------------------
+
 
     # 3. GÉNÉRATION DES PAYLOADS
     if protocol == 'vless':

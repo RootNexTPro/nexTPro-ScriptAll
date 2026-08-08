@@ -23,11 +23,37 @@ def create_ssh_account(user, password, days, created_by_id=None):
         exp_date = (datetime.now() + timedelta(days=int(days))).strftime("%Y-%m-%d")
         domain, pub_key, ns_domain, myip = _server_info()
 
+
         # Enregistrement du compte avec createdById
         db_dir = '/etc/nexus_bot/ssh_accounts'
         os.makedirs(db_dir, exist_ok=True)
         with open(f"{db_dir}/{user}.txt", 'w') as f:
-            f.write(f"username={user}\npassword={password}\nexpiry={exp_date}\ncreatedById={created_by_id}\ncreatedAt={datetime.utcnow().isoformat()}Z\nprotocol=ssh\nstatus=active\n")
+            f.write(f"username={user}
+password={password}
+expiry={exp_date}
+createdById={created_by_id}
+createdAt={datetime.utcnow().isoformat()}Z
+protocol=ssh
+status=active
+")
+
+        # --- SYNC WITH WEB PANEL ---
+        try:
+            import urllib.request, json
+            port = 2087
+            try:
+                with open('/etc/nexus-tunnel-web/config.json', 'r') as cf:
+                    config_web = json.load(cf)
+                    if 'port' in config_web: port = config_web['port']
+            except: pass
+            req = urllib.request.Request(f"http://127.0.0.1:{port}/api/clients/sync", method="POST")
+            req.add_header('Content-Type', 'application/json')
+            data = json.dumps({"username": user, "protocol": "ssh", "password": password, "expiry": exp_date, "uuid": ""}).encode('utf-8')
+            urllib.request.urlopen(req, data=data, timeout=2)
+        except Exception as e:
+            pass
+        # ---------------------------
+
 
         msg = (
             f"┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
@@ -126,6 +152,7 @@ def renew_ssh_account(user, days):
     subprocess.run(f"usermod -e {new_exp} {user}", shell=True)
     subprocess.run(f"passwd -u {user}", shell=True, capture_output=True)
 
+
     # Update stored expiry
     db_file = f"/etc/nexus_bot/ssh_accounts/{user}.txt"
     if os.path.exists(db_file):
@@ -133,7 +160,26 @@ def renew_ssh_account(user, days):
             db_lines = f.readlines()
         with open(db_file, 'w') as f:
             for l in db_lines:
-                f.write(f"expiry={new_exp}\n" if l.startswith("expiry=") else l)
+                f.write(f"expiry={new_exp}
+" if l.startswith("expiry=") else l)
+
+    # --- SYNC WITH WEB PANEL ---
+    try:
+        import urllib.request, json
+        port = 2087
+        try:
+            with open('/etc/nexus-tunnel-web/config.json', 'r') as cf:
+                config_web = json.load(cf)
+                if 'port' in config_web: port = config_web['port']
+        except: pass
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/clients/sync", method="POST")
+        req.add_header('Content-Type', 'application/json')
+        data = json.dumps({"username": user, "protocol": "ssh", "password": "", "expiry": new_exp, "uuid": ""}).encode('utf-8')
+        urllib.request.urlopen(req, data=data, timeout=2)
+    except Exception as e:
+        pass
+    # ---------------------------
+
 
     ok, details = get_ssh_account_details(user)
     if ok:

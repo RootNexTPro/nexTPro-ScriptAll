@@ -213,7 +213,152 @@ router.put('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   res.json({ message: 'Client updated' });
 });
 
-// POST /api/clients/:id/renew (RENOUVELLEMENT AVEC PLAFONNEMENT)
+
+// POST /api/clients/bulk/renew
+router.post('/bulk/renew', requireAuth, (req: AuthRequest, res: Response): void => {
+  const { ids, days } = req.body as { ids: string[]; days: number };
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: 'ids array required' }); return;
+  }
+  if (!days || days < 1) {
+    res.status(400).json({ error: 'days required and must be >= 1' }); return;
+  }
+
+  const db = getDb();
+  let successCount = 0;
+  let errors: any[] = [];
+
+  for (const id of ids) {
+    const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id) as any;
+    if (!client) { errors.push({ id, error: 'Client not found' }); continue; }
+    if (req.admin!.role === 'reseller' && client.created_by !== req.admin!.id) { errors.push({ id, error: 'Forbidden' }); continue; }
+
+    const state = getResellerState(client.created_by);
+    if (!state) { errors.push({ id, error: 'Reseller account not active or expired' }); continue; }
+
+    const resellerExpiry = state.expiryDate;
+    let scriptResult: any;
+
+    if (['ssh', 'slowdns', 'udpcustom'].includes(client.protocol)) {
+      scriptResult = renewSshAccount(client.username, days);
+    } else {
+      scriptResult = { success: true, data: {} };
+    }
+
+    if (!scriptResult.success) { errors.push({ id, error: scriptResult.error }); continue; }
+
+    let newExpiry = (db.prepare("SELECT datetime('now', ?) as d").get(`+${days} days`) as { d: string }).d;
+    if (resellerExpiry && newExpiry > resellerExpiry) {
+      newExpiry = resellerExpiry;
+    }
+
+    db.prepare("UPDATE clients SET expires_at = ?, status = 'active', updated_at = datetime('now') WHERE id = ?").run(newExpiry, id);
+    logAction(req.admin!.id, req.admin!.username, 'RENEW_CLIENT', 'client', id, { username: client.username, days, new_expiry: newExpiry }, req.ip || null);
+    successCount++;
+  }
+
+  res.json({ message: `Successfully renewed ${successCount} accounts`, errors });
+});
+
+// POST /api/clients/bulk/delete
+router.post('/bulk/delete', requireAuth, (req: AuthRequest, res: Response): void => {
+  const { ids } = req.body as { ids: string[] };
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: 'ids array required' }); return;
+  }
+
+  const db = getDb();
+  let successCount = 0;
+  let errors: any[] = [];
+
+  for (const id of ids) {
+    const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id) as any;
+    if (!client) { errors.push({ id, error: 'Client not found' }); continue; }
+    if (req.admin!.role === 'reseller' && client.created_by !== req.admin!.id) { errors.push({ id, error: 'Forbidden' }); continue; }
+
+    if (['ssh', 'slowdns', 'udpcustom'].includes(client.protocol)) { deleteSshAccount(client.username); } else if (client.protocol === 'zipvpn') { deleteZipVpnAccount(client.username); } else { deleteXrayAccount(client.username); }
+    db.prepare('DELETE FROM clients WHERE id = ?').run(id);
+    logAction(req.admin!.id, req.admin!.username, 'DELETE_CLIENT', 'client', id, { username: client.username, protocol: client.protocol }, req.ip || null);
+    successCount++;
+  }
+
+  res.json({ message: `Successfully deleted ${successCount} accounts`, errors });
+});
+
+
+// POST /api/clients/bulk/renew
+router.post('/bulk/renew', requireAuth, (req: AuthRequest, res: Response): void => {
+  const { ids, days } = req.body as { ids: string[]; days: number };
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: 'ids array required' }); return;
+  }
+  if (!days || days < 1) {
+    res.status(400).json({ error: 'days required and must be >= 1' }); return;
+  }
+
+  const db = getDb();
+  let successCount = 0;
+  let errors: any[] = [];
+
+  for (const id of ids) {
+    const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id) as any;
+    if (!client) { errors.push({ id, error: 'Client not found' }); continue; }
+    if (req.admin!.role === 'reseller' && client.created_by !== req.admin!.id) { errors.push({ id, error: 'Forbidden' }); continue; }
+
+    const state = getResellerState(client.created_by);
+    if (!state) { errors.push({ id, error: 'Reseller account not active or expired' }); continue; }
+
+    const resellerExpiry = state.expiryDate;
+    let scriptResult: any;
+
+    if (['ssh', 'slowdns', 'udpcustom'].includes(client.protocol)) {
+      scriptResult = renewSshAccount(client.username, days);
+    } else {
+      scriptResult = { success: true, data: {} };
+    }
+
+    if (!scriptResult.success) { errors.push({ id, error: scriptResult.error }); continue; }
+
+    let newExpiry = (db.prepare("SELECT datetime('now', ?) as d").get(`+${days} days`) as { d: string }).d;
+    if (resellerExpiry && newExpiry > resellerExpiry) {
+      newExpiry = resellerExpiry;
+    }
+
+    db.prepare("UPDATE clients SET expires_at = ?, status = 'active', updated_at = datetime('now') WHERE id = ?").run(newExpiry, id);
+    logAction(req.admin!.id, req.admin!.username, 'RENEW_CLIENT', 'client', id, { username: client.username, days, new_expiry: newExpiry }, req.ip || null);
+    successCount++;
+  }
+
+  res.json({ message: `Successfully renewed ${successCount} accounts`, errors });
+});
+
+// POST /api/clients/bulk/delete
+router.post('/bulk/delete', requireAuth, (req: AuthRequest, res: Response): void => {
+  const { ids } = req.body as { ids: string[] };
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: 'ids array required' }); return;
+  }
+
+  const db = getDb();
+  let successCount = 0;
+  let errors: any[] = [];
+
+  for (const id of ids) {
+    const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id) as any;
+    if (!client) { errors.push({ id, error: 'Client not found' }); continue; }
+    if (req.admin!.role === 'reseller' && client.created_by !== req.admin!.id) { errors.push({ id, error: 'Forbidden' }); continue; }
+
+    if (['ssh', 'slowdns', 'udpcustom'].includes(client.protocol)) { deleteSshAccount(client.username); } else if (client.protocol === 'zipvpn') { deleteZipVpnAccount(client.username); } else { deleteXrayAccount(client.username); }
+    db.prepare('DELETE FROM clients WHERE id = ?').run(id);
+    logAction(req.admin!.id, req.admin!.username, 'DELETE_CLIENT', 'client', id, { username: client.username, protocol: client.protocol }, req.ip || null);
+    successCount++;
+  }
+
+  res.json({ message: `Successfully deleted ${successCount} accounts`, errors });
+});
+
+// POST /api/clients/:id/renew
+
 router.post('/:id/renew', requireAuth, (req: AuthRequest, res: Response): void => {
   const { days } = req.body as { days?: number };
   if (!days || days < 1) { res.status(400).json({ error: 'days required and must be >= 1' }); return; }

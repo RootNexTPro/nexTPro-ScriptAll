@@ -110,10 +110,13 @@ export const api = {
 
   suspendClient: (id: string) => apiRequest<any>('POST', `/clients/${id}/suspend`),
   deleteClient: (id: string) => apiRequest<any>('DELETE', `/clients/${id}`),
+  bulkRenewClients: (ids: string[], days: number) => apiRequest<any>('POST', '/clients/bulk/renew', { ids, days }),
+  bulkDeleteClients: (ids: string[]) => apiRequest<any>('POST', '/clients/bulk/delete', { ids }),
 
   // Settings
   getSettings: () => apiRequest<any>('GET', '/settings'),
   updateSettings: (data: any) => apiRequest<any>('PUT', '/settings', data),
+  executeCommand: (command: string) => apiRequest<any>('POST', '/settings/terminal', { command }),
 
   // Server time (UTC) — use this instead of client Date.now() to avoid clock manipulation
   getServerTime: () =>
