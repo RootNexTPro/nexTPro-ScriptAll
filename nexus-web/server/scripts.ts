@@ -156,6 +156,39 @@ export function renewSshAccount(username: string, days: number): AccountResult {
   }
 }
 
+export function deleteXrayAccount(username: string): AccountResult {
+  try {
+    validateUsername(username);
+    const cfg = readXrayConfig();
+    if (!cfg || !cfg.inbounds) return { success: false, error: "Xray config or inbounds not found" };
+
+    let removed = false;
+    const inbounds = cfg.inbounds as XrayInbound[];
+    for (const inbound of inbounds) {
+      if (inbound.settings) {
+        if (Array.isArray(inbound.settings.clients)) {
+          const initialLength = inbound.settings.clients.length;
+          inbound.settings.clients = inbound.settings.clients.filter(c => c.email !== username);
+          if (inbound.settings.clients.length < initialLength) removed = true;
+        }
+        if (Array.isArray(inbound.settings.accounts)) {
+          const initialLength = inbound.settings.accounts.length;
+          inbound.settings.accounts = inbound.settings.accounts.filter(c => c.user !== username);
+          if (inbound.settings.accounts.length < initialLength) removed = true;
+        }
+      }
+    }
+
+    if (removed) {
+      saveAndRestartXray(cfg);
+      return { success: true, data: { username } };
+    }
+    return { success: true, error: "User not found in Xray config" };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+
 export function deleteSshAccount(username: string): AccountResult {
   try {
     validateUsername(username);
@@ -549,6 +582,58 @@ export function createUdpCustomAccount(username: string, password: string, days:
         udp_link: `${domain}:1-65535@${username}:${password}`
       }
     };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+export function deleteZipVpnAccount(username: string): AccountResult {
+  try {
+    validateUsername(username);
+    const zivpnDb = '/etc/zivpn/users.db';
+    const zvpnJson = '/etc/zivpn/zvpn.json';
+    const zivpnConfigJson = '/etc/zivpn/config.json';
+    if (!fs.existsSync('/etc/zivpn')) return { success: false, error: 'ZipVPN not installed' };
+
+    let passToRemove = '';
+
+    // Remove from users.db
+    if (fs.existsSync(zivpnDb)) {
+      const lines = fs.readFileSync(zivpnDb, 'utf8').split('\n');
+      const newLines = [];
+      for (const line of lines) {
+        if (line.startsWith(`${username} `)) {
+          passToRemove = line.split(' ')[1];
+        } else {
+          newLines.push(line);
+        }
+      }
+      fs.writeFileSync(zivpnDb, newLines.join('\n'));
+    }
+
+    // Remove from zvpn.json
+    if (fs.existsSync(zvpnJson)) {
+      try {
+        const cfg = JSON.parse(fs.readFileSync(zvpnJson, 'utf8'));
+        if (cfg.users && Array.isArray(cfg.users)) {
+          cfg.users = cfg.users.filter((u: any) => u.user !== username);
+          fs.writeFileSync(zvpnJson, JSON.stringify(cfg, null, 2));
+        }
+      } catch {}
+    }
+
+    // Remove password from config.json
+    if (passToRemove && fs.existsSync(zivpnConfigJson)) {
+      try {
+        const configData = JSON.parse(fs.readFileSync(zivpnConfigJson, 'utf8'));
+        if (configData && Array.isArray(configData.config)) {
+          configData.config = configData.config.filter((p: string) => p !== passToRemove);
+          fs.writeFileSync(zivpnConfigJson, JSON.stringify(configData, null, 2));
+        }
+      } catch {}
+    }
+
+    spawnSync('systemctl', ['restart', 'zivpn'], { encoding: 'utf8' });
+    return { success: true, data: { username } };
   } catch (err) {
     return { success: false, error: String(err) };
   }

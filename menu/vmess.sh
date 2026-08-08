@@ -259,7 +259,7 @@ for user in "${data[@]}"; do
 echo -n > /tmp/ipvmess.txt
 data2=( $(netstat -anp | grep ESTABLISHED | grep tcp6 | grep xray | awk '{print $5}' | cut -d: -f1 | sort -u) )
 for ip in "${data2[@]}"; do
-match=$(grep -w "$user" /var/log/xray/access.log | awk '{print $3}' | cut -d: -f1 | grep -w "$ip" | sort -u)
+match=$(grep -w "email: $user" /var/log/xray/access.log | grep -oE "\b[0-9]{1,3}(\.[0-9]{1,3}){3}\b" | grep -w "$ip" | sort -u | head -1)
 if [[ "$match" == "$ip" ]]; then
 echo "$match" >> /tmp/ipvmess.txt
 else

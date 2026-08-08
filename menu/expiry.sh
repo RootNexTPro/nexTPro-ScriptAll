@@ -12,7 +12,11 @@ d2=$(date -d "$today" +%s)
 days_left=$(( (d1 - d2) / 86400 ))
 if [[ $days_left -le 0 ]]; then
 echo "⛔ Removing expired $proto user: $user"
-sed -i "/^$marker $user $exp/,/\"email\": \"$user\"/d" "$CONFIG"
+if [[ "$proto" == "VMess" || "$proto" == "SOCKS" ]]; then
+sed -i "/^$marker $user $exp/,/^},{/d" "$CONFIG"
+else
+sed -i -e "/^$marker $user /d" -e "/\"email\": \"$user\"/d" "$CONFIG"
+fi
 fi
 done
 }
@@ -32,7 +36,7 @@ done < /tmp/expirelist.txt
 remove_expired_zivpn() {
 ZIVPN_DB="/etc/zivpn/users.db"
 ZIVPN_CFG="/etc/zivpn/config.json"
-ivpn_db="/ETC/ZIVPN/USERS.DB"echo "🔎 Checking ZIVPN accounts..."
+echo "🔎 Checking ZIVPN accounts..."
 [[ ! -f "$ZIVPN_DB" ]] && return
 while read -r line; do
 user=$(echo "$line" | awk '{print $1}')
