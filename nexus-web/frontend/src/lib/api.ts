@@ -127,6 +127,7 @@ export const api = {
 
   // Stats
   getStats: () => apiRequest<any>('GET', '/logs/stats'),
+  clearLogs: () => apiRequest<any>('DELETE', '/logs'),
   getLogs: (params?: { limit?: number; offset?: number }) => {
     const qs = params
       ? '?' +

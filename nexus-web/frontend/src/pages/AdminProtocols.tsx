@@ -19,6 +19,18 @@ export default function AdminProtocols() {
         <p className="text-muted-foreground text-sm mt-1">Configurer les protocoles et ports disponibles</p>
       </motion.div>
 
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+            <span className="w-3 h-3 rounded-full bg-success animate-pulse-glow" />
+            <h2 className="text-sm font-display font-semibold">Statut Global des Services</h2>
+        </div>
+        <div className="flex gap-4">
+            <div className="text-center px-4 border-r border-border/50"><span className="text-xs text-muted-foreground block">SSH/Dropbear</span><span className="text-success font-bold text-sm">Online</span></div>
+            <div className="text-center px-4 border-r border-border/50"><span className="text-xs text-muted-foreground block">Xray (V2ray)</span><span className="text-success font-bold text-sm">Online</span></div>
+            <div className="text-center px-4"><span className="text-xs text-muted-foreground block">ZiVPN (UDP)</span><span className="text-success font-bold text-sm">Online</span></div>
+        </div>
+      </motion.div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {protos.map((proto, i) => (
           <motion.div

@@ -145,10 +145,25 @@ export default function AdminDashboard() {
           transition={{ delay: 0.4 }}
           className="glass-card p-6 lg:col-span-1"
         >
-          <h2 className="text-lg font-display font-semibold text-foreground mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-primary" />
-            Activité Récente
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-display font-semibold text-foreground flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-primary" />
+              Activité Récente
+            </h2>
+            {user?.role === 'super_admin' && (
+              <button
+                onClick={async () => {
+                  if (confirm("Voulez-vous vraiment vider tous les logs d'activité ?")) {
+                    await api.clearLogs?.();
+                    setFullLogs([]);
+                  }
+                }}
+                className="text-[10px] btn-ghost border border-destructive/20 text-destructive hover:bg-destructive/10 px-2 py-1"
+              >
+                Vider
+              </button>
+            )}
+          </div>
           <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
             {fullLogs.length > 0 ? (
               fullLogs.map((log) => (
