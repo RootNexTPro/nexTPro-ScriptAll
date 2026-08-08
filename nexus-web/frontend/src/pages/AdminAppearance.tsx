@@ -17,6 +17,11 @@ export default function AdminAppearance() {
     setTimeout(() => setSaved(false), 3000);
   };
 
+  const applyPreset = (primary: string, accent: string) => {
+    update('primaryColor', primary);
+    update('accentColor', accent);
+  };
+
   return (
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
@@ -53,8 +58,15 @@ export default function AdminAppearance() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card p-6">
           <h3 className="text-lg font-display font-semibold text-foreground mb-4 flex items-center gap-2">
             <Palette className="w-5 h-5 text-accent" />
-            Couleurs
+            Couleurs & Thèmes
           </h3>
+
+          <div className="flex gap-2 mb-4">
+            <button onClick={() => applyPreset('#8A2BE2', '#FF0080')} className="btn-outline text-xs px-3 py-1.5 border-purple-500 text-purple-400 hover:bg-purple-500/20">Cyberpunk</button>
+            <button onClick={() => applyPreset('#00FF41', '#008F11')} className="btn-outline text-xs px-3 py-1.5 border-green-500 text-green-400 hover:bg-green-500/20">Matrix</button>
+            <button onClick={() => applyPreset('#00B4DB', '#0083B0')} className="btn-outline text-xs px-3 py-1.5 border-blue-500 text-blue-400 hover:bg-blue-500/20">Océan</button>
+          </div>
+
           <div className="space-y-4">
             <div>
               <label className="text-xs uppercase tracking-widest text-muted-foreground mb-2 block font-semibold">Couleur Primaire</label>

@@ -3,6 +3,7 @@ import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
 import { Users, Zap, CreditCard, Activity, TrendingUp, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -44,6 +45,9 @@ export default function AdminDashboard() {
   ];
 
   const recentActions: Array<{ action: string; cnt: number }> = stats?.recent_actions ?? [];
+  const protocolStats: Array<{ protocol: string; cnt: number }> = stats?.protocol_stats ?? [];
+
+  const COLORS = ['#8A2BE2', '#FF0080', '#00FFCC', '#FFB300', '#FF3366', '#33CCFF'];
 
   return (
     <div className="space-y-8">
@@ -83,13 +87,59 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      {/* Quick Info */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Quick Info & Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Chart */}
         <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="glass-card p-6 lg:col-span-1"
+        >
+          <h2 className="text-lg font-display font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Zap className="w-5 h-5 text-accent" />
+            Répartition des Protocoles
+          </h2>
+          <div className="h-64 w-full">
+            {protocolStats.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={protocolStats}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="cnt"
+                    nameKey="protocol"
+                    stroke="none"
+                  >
+                    {protocolStats.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'rgba(15, 15, 20, 0.9)', border: '1px solid rgba(138, 43, 226, 0.2)', borderRadius: '8px' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                Aucune donnée
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* Recent Activity */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="glass-card p-6"
+          className="glass-card p-6 lg:col-span-1"
         >
           <h2 className="text-lg font-display font-semibold text-foreground mb-4 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-primary" />
@@ -98,7 +148,7 @@ export default function AdminDashboard() {
           <div className="space-y-3">
             {recentActions.length > 0 ? (
               recentActions.slice(0, 6).map((item, i) => (
-                <div key={i} className="flex items-center justify-between py-3 border-b border-border last:border-0">
+                <div key={i} className="flex items-center justify-between py-3 border-b border-border/50 last:border-0">
                   <div className="flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-gradient-primary animate-pulse-glow" />
                     <div>
@@ -109,52 +159,47 @@ export default function AdminDashboard() {
                 </div>
               ))
             ) : (
-              [
-                { action: 'Aucune activité récente', protocol: null },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center justify-between py-3 border-b border-border last:border-0">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">{item.action}</p>
-                  </div>
-                </div>
-              ))
+              <div className="flex items-center gap-3 py-3">
+                <div className="w-2 h-2 rounded-full bg-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Aucune activité récente</p>
+              </div>
             )}
           </div>
         </motion.div>
 
+        {/* System Summary */}
         <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="glass-card p-6"
+          className="glass-card p-6 lg:col-span-1"
         >
           <h2 className="text-lg font-display font-semibold text-foreground mb-4 flex items-center gap-2">
-            <Shield className="w-5 h-5 text-accent" />
+            <Shield className="w-5 h-5 text-success" />
             Résumé du Système
           </h2>
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center p-2 rounded-lg hover:bg-secondary/50 transition-colors">
               <span className="text-sm text-muted-foreground">Administrateurs</span>
               <span className="font-display font-bold text-foreground">{stats?.admins?.total ?? '—'}</span>
             </div>
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center p-2 rounded-lg hover:bg-secondary/50 transition-colors">
               <span className="text-sm text-muted-foreground">Revendeurs actifs</span>
               <span className="font-display font-bold text-success">{stats?.resellers?.active ?? '—'}</span>
             </div>
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center p-2 rounded-lg hover:bg-secondary/50 transition-colors">
               <span className="text-sm text-muted-foreground">Revendeurs inactifs</span>
               <span className="font-display font-bold text-destructive">{stats?.resellers?.suspended ?? '—'}</span>
             </div>
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center p-2 rounded-lg hover:bg-secondary/50 transition-colors">
               <span className="text-sm text-muted-foreground">Comptes actifs</span>
               <span className="font-display font-bold text-primary">{stats?.clients?.active ?? '—'}</span>
             </div>
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center p-2 rounded-lg hover:bg-secondary/50 transition-colors">
               <span className="text-sm text-muted-foreground">Comptes expirés</span>
               <span className="font-display font-bold text-muted-foreground">{stats?.clients?.expired ?? '—'}</span>
             </div>
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center p-2 rounded-lg hover:bg-secondary/50 transition-colors">
               <span className="text-sm text-muted-foreground">Protocoles</span>
               <span className="font-display font-bold text-accent">{stats?.protocol_stats?.length ?? '—'}</span>
             </div>

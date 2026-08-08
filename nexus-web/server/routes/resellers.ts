@@ -95,9 +95,10 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response): Promise<v
   const id = uuidv4();
   const hash = await bcrypt.hash(password, 12);
   const bouquetJson = JSON.stringify(
-    normalizedBouquet.map((b) => ({
+    normalizedBouquet.map((b: any) => ({
       protocolId: normalizeProtocol(String(b.protocolId)),
       maxAccounts: Number(b.maxAccounts),
+      expiry: b.expiry ? String(b.expiry) : undefined,
     }))
   );
 
@@ -187,14 +188,14 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res: Response): Promise
 
   if (Array.isArray(bouquet)) {
     const seen = new Set<string>();
-    const normalized = bouquet.map((b) => {
+    const normalized = bouquet.map((b: any) => {
       const proto = normalizeProtocol(String(b?.protocolId || ''));
       const maxAccounts = Number(b?.maxAccounts || 0);
       if (!ALLOWED_PROTOCOLS.has(proto)) throw new Error(`Invalid protocol: ${proto}`);
       if (!Number.isInteger(maxAccounts) || maxAccounts < 1 || maxAccounts > 100000) throw new Error(`Invalid maxAccounts for ${proto}`);
       if (seen.has(proto)) throw new Error(`Duplicate protocol: ${proto}`);
       seen.add(proto);
-      return { protocolId: proto, maxAccounts };
+      return { protocolId: proto, maxAccounts, expiry: b.expiry ? String(b.expiry) : undefined };
     });
     updates.push('bouquet = ?');
     params.push(JSON.stringify(normalized));

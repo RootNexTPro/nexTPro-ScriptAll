@@ -94,17 +94,35 @@
 
 @layer components {
   .glass-card {
-    @apply rounded-xl border border-border bg-card/60 backdrop-blur-xl;
-    box-shadow: var(--glow-primary), inset 0 1px 0 rgba(255,255,255,0.05);
+    @apply rounded-xl border border-border bg-card/40 backdrop-blur-3xl;
+    box-shadow: var(--glow-primary), inset 0 1px 0 rgba(255,255,255,0.1), inset 0 -1px 0 rgba(0,0,0,0.2);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .glass-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    border-radius: inherit;
+    padding: 2px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
   }
 
   .glass-card-hover {
     @apply glass-card transition-all duration-500;
   }
   .glass-card-hover:hover {
-    border-color: hsl(var(--primary) / 0.4);
-    box-shadow: var(--glow-primary-strong), inset 0 1px 0 rgba(255,255,255,0.08);
-    transform: translateY(-2px);
+    border-color: hsl(var(--primary) / 0.6);
+    box-shadow: var(--glow-primary-strong), inset 0 1px 0 rgba(255,255,255,0.15), 0 0 20px hsl(var(--primary)/0.2);
+    transform: translateY(-4px);
+  }
+  .glass-card-hover:hover::before {
+     background: linear-gradient(135deg, hsl(var(--primary)/0.5), hsl(var(--accent)/0.5));
   }
 
   .text-gradient-primary {
@@ -139,8 +157,21 @@
 
   .btn-primary {
     background: var(--gradient-primary);
-    @apply text-primary-foreground font-bold py-3 px-6 rounded-lg transition-all duration-300 hover:brightness-110 active:scale-[0.97];
+    background-size: 200% 200%;
+    @apply text-primary-foreground font-bold py-3 px-6 rounded-lg transition-all duration-300 active:scale-[0.97] relative overflow-hidden;
     box-shadow: 0 4px 20px rgba(138, 43, 226, 0.3);
+  }
+  .btn-primary::after {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%; width: 200%; height: 200%;
+    background: linear-gradient(transparent, rgba(255,255,255,0.2), transparent);
+    transform: rotate(45deg);
+    animation: btn-sweep 3s linear infinite;
+  }
+  @keyframes btn-sweep {
+    0% { transform: rotate(45deg) translateY(-100%); }
+    100% { transform: rotate(45deg) translateY(100%); }
   }
   .btn-primary:hover {
     box-shadow: 0 6px 30px rgba(138, 43, 226, 0.5);
