@@ -173,6 +173,12 @@ exp3=$(( exp2 + masaaktif ))
 exp4=$(date -d "$exp3 days" +"%Y-%m-%d")
 sed -i "/### $user/c\### $user $exp4 $uuid" /etc/xray/config.json
 systemctl restart xray > /dev/null 2>&1
+
+port=$(grep -oP '"port":\s*\K[0-9]+' /etc/nexus-tunnel-web/config.json 2>/dev/null || echo 2087)
+curl -s -X POST "http://127.0.0.1:$port/api/clients/sync" \
+     -H "Content-Type: application/json" \
+     -d '{"username":"'"$user"'", "protocol":"vmess", "password":"", "expiry":"'"$exp"'", "uuid":"'"$uuid"'"}' > /dev/null 2>&1
+
 clear
 echo -e "${LN}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${NC}"
 echo -e "${LN}┃${NC} ${BG}             VMESS ACCOUNT RENEWED              ${NC} ${LN}┃${NC}"
@@ -232,6 +238,12 @@ return
 fi
 sed -i "/^### $user $exp/,/^},{/d" /etc/xray/config.json
 systemctl restart xray > /dev/null 2>&1
+
+port=$(grep -oP '"port":\s*\K[0-9]+' /etc/nexus-tunnel-web/config.json 2>/dev/null || echo 2087)
+curl -s -X POST "http://127.0.0.1:$port/api/clients/sync" \
+     -H "Content-Type: application/json" \
+     -d '{"username":"'"$user"'", "protocol":"vmess", "password":"", "expiry":"'"$exp"'", "uuid":"'"$uuid"'"}' > /dev/null 2>&1
+
 clear
 echo -e "${LN}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${NC}"
 echo -e "${LN}┃${NC} ${BG}             VMESS ACCOUNT DELETED              ${NC} ${LN}┃${NC}"

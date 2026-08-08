@@ -87,7 +87,36 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
   res.json(db.prepare(query).all(...params));
 });
 
+
+// POST /api/clients/sync - Internal endpoint to sync accounts from terminal
+router.post('/sync', (req: AuthRequest, res: Response): void => {
+  if (req.ip !== '127.0.0.1' && req.ip !== '::1' && req.ip !== '::ffff:127.0.0.1') {
+    res.status(403).json({ error: 'Forbidden' }); return;
+  }
+
+  const { username, protocol, password, expiry, uuid } = req.body;
+  if (!username || !protocol || !expiry) {
+    res.status(400).json({ error: 'Missing fields' }); return;
+  }
+
+  const db = getDb();
+  const superAdmin = db.prepare("SELECT id FROM admins WHERE role = 'super_admin' LIMIT 1").get() as { id: string };
+  if (!superAdmin) { res.status(500).json({ error: 'No super admin found' }); return; }
+
+  const existing = db.prepare("SELECT id FROM clients WHERE username = ? AND protocol = ?").get(username, protocol) as { id: string } | undefined;
+
+  if (existing) {
+    db.prepare("UPDATE clients SET expires_at = ?, password = ?, status = 'active', updated_at = datetime('now') WHERE id = ?").run(expiry, password || '', existing.id);
+  } else {
+    db.prepare(`INSERT INTO clients (id, username, password, protocol, expires_at, status, created_by, extra_data) VALUES (?, ?, ?, ?, ?, 'active', ?, ?)`).run(
+      uuidv4(), username, password || '', protocol, expiry, superAdmin.id, JSON.stringify({ uuid: uuid || '' })
+    );
+  }
+  res.json({ message: 'Synced successfully' });
+});
+
 // POST /api/clients (CRÉATION AVEC PLAFONNEMENT)
+
 router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
   const { username, password, protocol, days, plan_id } = req.body as any;
 

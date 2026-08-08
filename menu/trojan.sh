@@ -51,6 +51,12 @@ trojanlink1="trojan://${uuid}@${DOMAIN}:443?path=/trws&security=tls&encryption=n
 trojanlink2="trojan://${uuid}@${DOMAIN}:80?path=/trws&encryption=none&security=none&host=${DOMAIN}&type=ws#${user}"
 trojanlink3="trojan://${uuid}@${DOMAIN}:443?mode=gun&security=tls&type=grpc&serviceName=trojan-grpc&sni=${DOMAIN}#${user}"
 systemctl restart xray
+
+port=$(grep -oP '"port":\s*\K[0-9]+' /etc/nexus-tunnel-web/config.json 2>/dev/null || echo 2087)
+curl -s -X POST "http://127.0.0.1:$port/api/clients/sync" \
+     -H "Content-Type: application/json" \
+     -d '{"username":"'"$user"'", "protocol":"trojan", "password":"'"$uuid"'", "expiry":"'"$exp"'", "uuid":"'"$uuid"'"}' > /dev/null 2>&1
+
 clear
 echo -e "${LN}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${NC}"
 echo -e "${LN}┃${NC} ${BG}             TROJAN ACCOUNT DETAILS             ${NC} ${LN}┃${NC}"
@@ -147,6 +153,12 @@ exp3=$(( exp2 + masaaktif ))
 exp4=$(date -d "$exp3 days" +"%Y-%m-%d")
 sed -i "/^#! $user /c\#! $user $exp4 $uuid" /etc/xray/config.json
 systemctl restart xray > /dev/null 2>&1
+
+port=$(grep -oP '"port":\s*\K[0-9]+' /etc/nexus-tunnel-web/config.json 2>/dev/null || echo 2087)
+curl -s -X POST "http://127.0.0.1:$port/api/clients/sync" \
+     -H "Content-Type: application/json" \
+     -d '{"username":"'"$user"'", "protocol":"trojan", "password":"'"$uuid"'", "expiry":"'"$exp"'", "uuid":"'"$uuid"'"}' > /dev/null 2>&1
+
 clear
 echo -e "${LN}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${NC}"
 echo -e "${LN}┃${NC} ${BG}             TROJAN ACCOUNT RENEWED             ${NC} ${LN}┃${NC}"
@@ -208,6 +220,12 @@ fi
 uuid=$(grep -wE "^#! $duser" "/etc/xray/config.json" | cut -d ' ' -f 3 | sort | uniq)
 sed -i -e "/^#! $duser /d" -e "/\"email\": \"$duser\"/d" /etc/xray/config.json
 systemctl restart xray > /dev/null 2>&1
+
+port=$(grep -oP '"port":\s*\K[0-9]+' /etc/nexus-tunnel-web/config.json 2>/dev/null || echo 2087)
+curl -s -X POST "http://127.0.0.1:$port/api/clients/sync" \
+     -H "Content-Type: application/json" \
+     -d '{"username":"'"$user"'", "protocol":"trojan", "password":"'"$uuid"'", "expiry":"'"$exp"'", "uuid":"'"$uuid"'"}' > /dev/null 2>&1
+
 clear
 echo -e "${LN}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${NC}"
 echo -e "${LN}┃${NC} ${BG}            TROJAN ACCOUNT DELETED             ${NC} ${LN}┃${NC}"
