@@ -152,6 +152,12 @@ export default function AdminServer() {
             <Terminal className="w-5 h-5 text-primary" />
             <h3 className="text-sm font-bold font-mono tracking-wider text-foreground">Web Terminal</h3>
           </div>
+          <div className="bg-secondary/50 p-2 border-b border-border flex gap-2 overflow-x-auto">
+            <button onClick={() => { setCommand('systemctl restart xray'); handleCommand(); }} disabled={isExecuting} className="btn-outline text-[10px] px-2 py-1 whitespace-nowrap">Restart Xray</button>
+            <button onClick={() => { setCommand('systemctl restart ssh'); handleCommand(); }} disabled={isExecuting} className="btn-outline text-[10px] px-2 py-1 whitespace-nowrap">Restart SSH</button>
+            <button onClick={() => { setCommand('clear'); setTermOutput([]); }} disabled={isExecuting} className="btn-outline text-[10px] px-2 py-1 whitespace-nowrap border-warning text-warning hover:bg-warning/10">Clear Terminal</button>
+            <button onClick={() => { setCommand('htop -b -n 1 | head -n 20'); handleCommand(); }} disabled={isExecuting} className="btn-outline text-[10px] px-2 py-1 whitespace-nowrap border-accent text-accent hover:bg-accent/10">Process List</button>
+          </div>
 
           <div className="flex-1 p-4 bg-[#0a0a0c] overflow-y-auto font-mono text-sm space-y-2">
             {termOutput.map((out, idx) => (

@@ -485,8 +485,8 @@ export function createZipVpnAccount(username: string, password: string, days: nu
     validateUsername(username);
     validateDays(days);
 
-    // ZipVPN uses /etc/zivpn/users.db (username password expiry)
-    const zivpnDb = '/etc/zivpn/users.db';
+    // ZipVPN uses /etc/zivpn/user.db (username password expiry)
+    const zivpnDb = '/etc/zivpn/user.db';
     const zvpnJson = '/etc/zivpn/zvpn.json';
 
     if (!fs.existsSync('/etc/zivpn')) {
@@ -589,14 +589,14 @@ export function createUdpCustomAccount(username: string, password: string, days:
 export function deleteZipVpnAccount(username: string): AccountResult {
   try {
     validateUsername(username);
-    const zivpnDb = '/etc/zivpn/users.db';
+    const zivpnDb = '/etc/zivpn/user.db';
     const zvpnJson = '/etc/zivpn/zvpn.json';
     const zivpnConfigJson = '/etc/zivpn/config.json';
     if (!fs.existsSync('/etc/zivpn')) return { success: false, error: 'ZipVPN not installed' };
 
     let passToRemove = '';
 
-    // Remove from users.db
+    // Remove from user.db
     if (fs.existsSync(zivpnDb)) {
       const lines = fs.readFileSync(zivpnDb, 'utf8').split('\n');
       const newLines = [];

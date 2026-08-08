@@ -20,6 +20,15 @@ export default function AdminAppearance() {
   const applyPreset = (primary: string, accent: string) => {
     update('primaryColor', primary);
     update('accentColor', accent);
+    document.documentElement.style.setProperty('--primary', primary);
+    document.documentElement.style.setProperty('--accent', accent);
+  };
+
+  // Real-time apply colors on change
+  const handleColorChange = (field: string, value: string) => {
+      update(field, value);
+      if (field === 'primaryColor') document.documentElement.style.setProperty('--primary', value);
+      if (field === 'accentColor') document.documentElement.style.setProperty('--accent', value);
   };
 
   return (

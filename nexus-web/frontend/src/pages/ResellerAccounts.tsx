@@ -3,7 +3,7 @@ import { api } from '@/lib/api';
 import { expiryToUnix } from '@/lib/utils';
 import { formatConfig } from '@/lib/config-formatter';
 import ConfigOutput from '@/components/ConfigOutput';
-import { Search, Trash2, RefreshCw, Eye, X, MinusCircle } from 'lucide-react';
+import { Search, Trash2, RefreshCw, Eye, X, MinusCircle, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProtocolType } from '@/lib/types';
 
@@ -97,10 +97,10 @@ export default function ResellerAccounts() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.length === filteredClients.length) {
+    if (selectedIds.length === filtered.length) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(filteredClients.map(c => c.id));
+      setSelectedIds(filtered.map(c => c.id));
     }
   };
 
@@ -252,7 +252,7 @@ export default function ResellerAccounts() {
 
       <div className="glass-card overflow-hidden">
         <div className="grid grid-cols-[auto_1fr_1fr_1fr_1fr_1fr_auto] gap-4 p-4 border-b border-border text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">
-          <span className="w-10 flex justify-center items-center"><input type="checkbox" className="w-4 h-4 accent-primary" checked={filteredClients.length > 0 && selectedIds.length === filteredClients.length} onChange={toggleSelectAll} /></span>
+          <span className="w-10 flex justify-center items-center"><input type="checkbox" className="w-4 h-4 accent-primary" checked={filtered.length > 0 && selectedIds.length === filtered.length} onChange={toggleSelectAll} /></span>
               <span>Utilisateur</span>
           <span>Protocole</span>
           <span>Expiration</span>
