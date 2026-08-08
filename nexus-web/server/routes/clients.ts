@@ -6,7 +6,7 @@ import {
   createSshAccount, renewSshAccount, deleteSshAccount, suspendSshAccount,
   setSshAccountExpiry, createXrayVmessAccount, createXrayVlessAccount,
   createXrayTrojanAccount, createXraySocksAccount, createZipVpnAccount,
-  createSlowDnsAccount, createUdpCustomAccount
+  createSlowDnsAccount, createUdpCustomAccount, deleteXrayAccount, deleteZipVpnAccount
 } from '../scripts';
 
 const router = Router();
@@ -275,7 +275,7 @@ router.delete('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id) as any;
   if (!client) { res.status(404).json({ error: 'Client not found' }); return; }
   if (req.admin!.role === 'reseller' && client.created_by !== req.admin!.id) { res.status(403).json({ error: 'Forbidden' }); return; }
-  if (['ssh', 'slowdns', 'udpcustom'].includes(client.protocol)) { deleteSshAccount(client.username); }
+  if (['ssh', 'slowdns', 'udpcustom'].includes(client.protocol)) { deleteSshAccount(client.username); } else if (client.protocol === 'zipvpn') { deleteZipVpnAccount(client.username); } else { deleteXrayAccount(client.username); }
   db.prepare('DELETE FROM clients WHERE id = ?').run(req.params.id);
   logAction(req.admin!.id, req.admin!.username, 'DELETE_CLIENT', 'client', req.params.id, { username: client.username, protocol: client.protocol }, req.ip || null);
   res.json({ message: 'Client deleted' });

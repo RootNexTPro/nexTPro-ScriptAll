@@ -11,7 +11,7 @@ import plansRouter from './routes/plans';
 import logsRouter from './routes/logs';
 import resellersRouter from './routes/resellers';
 import settingsRouter from './routes/settings';
-import { suspendSshAccount, deleteSshAccount } from './scripts';
+import { suspendSshAccount, deleteSshAccount, deleteXrayAccount, deleteZipVpnAccount } from './scripts';
 
 // ─── Load configuration ────────────────────────────────────────────────────────
 const CONFIG_FILE = process.env.NEXUS_CONFIG || '/etc/nexus-tunnel-web/config.json';
@@ -131,6 +131,10 @@ function runExpiryScheduler(): void {
       for (const client of clients) {
         if (SSH_PROTOCOLS.has(client.protocol)) {
           try { deleteSshAccount(client.username); } catch {}
+        } else if (client.protocol === 'zipvpn') {
+          try { deleteZipVpnAccount(client.username); } catch {}
+        } else {
+          try { deleteXrayAccount(client.username); } catch {}
         }
       }
 
