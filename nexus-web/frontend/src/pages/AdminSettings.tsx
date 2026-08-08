@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
-import { Settings, Globe, Shield, Bell, Server } from 'lucide-react';
+import { Settings, Globe, Shield, Bell, Server, Send } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const DEFAULT_SETTINGS = {
@@ -24,6 +24,8 @@ export default function AdminSettings() {
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [broadcasting, setBroadcasting] = useState(false);
 
   useEffect(() => {
     api.getSettings()
@@ -40,6 +42,19 @@ export default function AdminSettings() {
 
   const updateConfig = (field: string, value: string) => {
     setSettings(prev => ({ ...prev, server: { ...prev.server, [field]: value } }));
+  };
+
+  const handleBroadcast = async () => {
+    if (!broadcastMessage.trim()) return;
+    setBroadcasting(true);
+    try {
+      await api.sendBroadcast(broadcastMessage);
+      setBroadcastMessage('');
+      alert('Message diffusé avec succès !');
+    } catch(e: any) {
+      alert('Erreur: ' + e.message);
+    }
+    setBroadcasting(false);
   };
 
   const handleSave = async () => {
@@ -202,6 +217,21 @@ export default function AdminSettings() {
                 className="input-dark w-full font-mono"
                 placeholder="@my_channel"
               />
+            </div>
+
+            <div className="pt-4 border-t border-border/50">
+              <label className="text-xs uppercase tracking-widest text-muted-foreground mb-2 block font-semibold">Diffusion Globale (Super Admin)</label>
+              <div className="flex gap-2">
+                <input
+                  value={broadcastMessage}
+                  onChange={e => setBroadcastMessage(e.target.value)}
+                  className="input-dark flex-1 text-sm"
+                  placeholder="Message à diffuser..."
+                />
+                <button onClick={handleBroadcast} disabled={broadcasting || !broadcastMessage} className="btn-primary px-4 py-2 flex items-center gap-2">
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </motion.div>

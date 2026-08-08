@@ -112,6 +112,29 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response): Promise<v
     { username, duration_days: days }, req.ip || null
   );
 
+  // Trigger Telegram Notification
+  try {
+    const fetch = require('node-fetch');
+    const settingsPath = process.env.NEXUS_DB_DIR ? (process.env.NEXUS_DB_DIR + '/settings.json') : '/etc/nexus-tunnel-web/settings.json';
+    if (require('fs').existsSync(settingsPath)) {
+      const s = JSON.parse(require('fs').readFileSync(settingsPath, 'utf8'));
+      if (s.telegramBot && s.telegramChannel) {
+        let bqText = '';
+        try {
+          const bqParsed = JSON.parse(bouquetJson);
+          bqText = bqParsed.map((b: any) => `- ${b.protocolId.toUpperCase()}: ${b.maxAccounts} comptes`).join('\n');
+        } catch(e) {}
+
+        const msg = `📦 <b>Nouveau Revendeur Officiel</b>\n👤 <b>Username:</b> ${username}\n⏳ <b>Durée:</b> ${days} Jours\n\n📋 <b>Bouquets attribués:</b>\n${bqText}\n\n✨ Bienvenue dans l'équipe Nexus Tunnel Pro !`;
+        fetch(`https://api.telegram.org/bot${s.telegramBot}/sendMessage`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ chat_id: s.telegramChannel, text: msg, parse_mode: 'HTML' })
+        }).catch(() => {});
+      }
+    }
+  } catch(e) {}
+
   res.status(201).json({
     id, username, role: 'reseller', status: 'active',
     expiry_date: expiryDate,

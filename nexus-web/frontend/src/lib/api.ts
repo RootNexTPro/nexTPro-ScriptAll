@@ -117,6 +117,7 @@ export const api = {
   getSettings: () => apiRequest<any>('GET', '/settings'),
   updateSettings: (data: any) => apiRequest<any>('PUT', '/settings', data),
   executeCommand: (command: string) => apiRequest<any>('POST', '/settings/terminal', { command }),
+  sendBroadcast: (message: string) => apiRequest<any>('POST', '/settings/broadcast', { message }),
   getSystemInfo: () => apiRequest<any>('GET', '/settings/system'),
   getXrayLogs: () => apiRequest<{logs: string}>('GET', '/settings/xray-logs'),
 

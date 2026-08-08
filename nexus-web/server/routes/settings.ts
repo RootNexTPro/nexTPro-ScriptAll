@@ -150,10 +150,18 @@ router.post('/terminal', requireAuth, (req: AuthRequest, res: Response): void =>
 
   try {
     // Execute command with a timeout of 10s to prevent hanging
-    const output = execSync(command, { encoding: 'utf8', timeout: 10000 });
-    res.json({ output });
+    let output = '';
+    try {
+      output = execSync(command, { encoding: 'utf8', timeout: 10000 });
+      if (!output) output = 'OK';
+      res.json({ output });
+    } catch (err: any) {
+      output = err.stdout || '';
+      const stderr = err.stderr || '';
+      res.status(500).json({ error: stderr || err.message || 'Execution failed' });
+    }
   } catch (err: any) {
-    res.status(500).json({ error: err.stderr || err.message || 'Execution failed' });
+    res.status(500).json({ error: err.message || 'Execution failed' });
   }
 });
 
@@ -203,5 +211,44 @@ router.get('/xray-logs', requireAuth, (req: AuthRequest, res: Response): void =>
     res.json({ logs });
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to read Xray logs' });
+  }
+});
+
+// POST /api/settings/broadcast
+router.post('/broadcast', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  const admin = req.admin!;
+  if (admin.role !== 'super_admin') {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const { message } = req.body as { message: string };
+  if (!message) {
+    res.status(400).json({ error: 'Message is required' });
+    return;
+  }
+
+  try {
+    const fetch = require('node-fetch');
+    const settings = loadSettings();
+    if (!settings.telegramBot || !settings.telegramChannel) {
+      res.status(400).json({ error: 'Telegram non configuré dans les paramètres' });
+      return;
+    }
+
+    const formattedMsg = `📢 <b>MESSAGE GLOBAL (Super Admin)</b>\n\n${message}`;
+    const response = await fetch(`https://api.telegram.org/bot${settings.telegramBot}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: settings.telegramChannel, text: formattedMsg, parse_mode: 'HTML' })
+    });
+
+    if (!response.ok) {
+      throw new Error('Telegram API Error');
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Erreur lors de l\'envoi du broadcast' });
   }
 });
