@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Terminal, Send } from 'lucide-react';
 import { api } from '@/lib/api';
 import { motion } from 'framer-motion';
 
@@ -13,6 +14,35 @@ export default function AdminServer() {
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [command, setCommand] = useState('');
+  const [termOutput, setTermOutput] = useState<{type: 'in' | 'out' | 'err', text: string}[]>([
+    { type: 'out', text: 'Welcome to Nexus Tunnel Pro Web Terminal.\nType a command and press Enter.' }
+  ]);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const termEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    termEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [termOutput]);
+
+  const handleCommand = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!command.trim() || isExecuting) return;
+
+    const cmd = command;
+    setCommand('');
+    setTermOutput(prev => [...prev, { type: 'in', text: `root@nexus:~# ${cmd}` }]);
+    setIsExecuting(true);
+
+    try {
+      const res = await api.executeCommand(cmd);
+      setTermOutput(prev => [...prev, { type: 'out', text: res.output }]);
+    } catch (err: any) {
+      setTermOutput(prev => [...prev, { type: 'err', text: err.message || 'Execution failed' }]);
+    }
+    setIsExecuting(false);
+  };
+
 
   useEffect(() => {
     api.getSettings()
@@ -49,44 +79,7 @@ export default function AdminServer() {
 
   return (
     <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-        <h1 className="text-2xl font-display font-bold tracking-tight">
-          <span className="text-gradient-primary">Configuration Serveur</span>
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">Paramètres du serveur VPS</p>
-      </motion.div>
 
-      <div className="glass-card p-6 max-w-2xl">
-        <div className="space-y-4">
-          {[
-            { key: 'ip', label: 'Adresse IP', placeholder: '45.41.206.33' },
-            { key: 'domain', label: 'Domaine Principal', placeholder: 'joel.camtel.eu.cc' },
-            { key: 'nsDomain', label: 'NS Domain', placeholder: 'blue.camtel.eu.cc' },
-            { key: 'slowdnsPub', label: 'SlowDNS Public Key', placeholder: 'PUB Key' },
-            { key: 'openvpnDownload', label: 'OpenVPN Download URL', placeholder: 'https://...' },
-          ].map(({ key, label, placeholder }) => (
-            <div key={key}>
-              <label className="text-xs uppercase tracking-widest text-muted-foreground mb-2 block font-semibold">{label}</label>
-              <input
-                value={(config as any)[key] || ''}
-                onChange={e => updateField(key, e.target.value)}
-                className="input-dark w-full font-mono"
-                placeholder={placeholder}
-              />
-            </div>
-          ))}
-        </div>
-        <div className="flex items-center gap-3 mt-6">
-          <button onClick={handleSave} disabled={saving} className="btn-primary">
-            {saving ? 'Sauvegarde...' : 'Sauvegarder'}
-          </button>
-          {saved && (
-            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-success">
-              ✓ Sauvegardé
-            </motion.span>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

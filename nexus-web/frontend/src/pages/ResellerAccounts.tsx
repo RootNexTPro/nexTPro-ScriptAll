@@ -32,6 +32,9 @@ export default function ResellerAccounts() {
   const [renewDays, setRenewDays] = useState('30');
   const [renewLoading, setRenewLoading] = useState(false);
   const [renewError, setRenewError] = useState('');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkDays, setBulkDays] = useState('30');
+  const [isBulking, setIsBulking] = useState(false);
   const [reduceDays, setReduceDays] = useState('1');
   const [reduceLoading, setReduceLoading] = useState(false);
   const [reduceError, setReduceError] = useState('');
@@ -60,6 +63,53 @@ export default function ResellerAccounts() {
     const expiresUnix = expiryToUnix(client.expires_at);
     const now = serverUnix ?? Math.floor(Date.now() / 1000);
     return client.status === 'active' && expiresUnix > now;
+  };
+
+
+  const handleBulkRenew = async () => {
+    if (selectedIds.length === 0) return;
+    const days = parseInt(bulkDays);
+    if (days < 1) return;
+    setIsBulking(true);
+    try {
+      await api.bulkRenewClients(selectedIds, days);
+      await fetchClients();
+      setSelectedIds([]);
+    } catch (e: any) {
+      alert(e.message || 'Erreur lors du renouvellement en masse');
+    }
+    setIsBulking(false);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Voulez-vous vraiment supprimer ${selectedIds.length} comptes ?`)) return;
+    setIsBulking(true);
+    try {
+      await api.bulkDeleteClients(selectedIds);
+      await fetchClients();
+      setSelectedIds([]);
+      setDetailClient(null);
+    } catch (e: any) {
+      alert(e.message || 'Erreur lors de la suppression en masse');
+    }
+    setIsBulking(false);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredClients.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredClients.map(c => c.id));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter(i => i !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -157,6 +207,31 @@ export default function ResellerAccounts() {
         <p className="text-muted-foreground text-sm mt-1">{accounts.length} comptes au total</p>
       </motion.div>
 
+
+      {selectedIds.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4 flex items-center justify-between sticky top-4 z-10 bg-card/90 backdrop-blur-xl border-primary/50 shadow-[0_0_20px_rgba(138,43,226,0.3)]">
+          <div className="flex items-center gap-4">
+            <span className="protocol-badge border-primary text-primary bg-primary/20">{selectedIds.length} comptes sélectionnés</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <select value={bulkDays} onChange={(e) => setBulkDays(e.target.value)} className="input-dark py-2 text-sm w-32">
+              <option value="1">1 Jour</option>
+              <option value="7">7 Jours</option>
+              <option value="30">30 Jours</option>
+              <option value="60">60 Jours</option>
+              <option value="180">180 Jours</option>
+              <option value="360">360 Jours</option>
+            </select>
+            <button onClick={handleBulkRenew} disabled={isBulking} className="btn-primary py-2 px-4 text-sm flex items-center gap-2">
+              {isBulking ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Renouveler
+            </button>
+            <button onClick={handleBulkDelete} disabled={isBulking} className="btn-ghost text-destructive hover:bg-destructive/20 py-2 px-4 border border-destructive/50 flex items-center gap-2">
+              <Trash2 className="w-4 h-4" /> Supprimer
+            </button>
+          </div>
+        </motion.div>
+      )}
+
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
@@ -168,8 +243,9 @@ export default function ResellerAccounts() {
       </div>
 
       <div className="glass-card overflow-hidden">
-        <div className="grid grid-cols-6 gap-4 p-4 border-b border-border text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">
-          <span>Utilisateur</span>
+        <div className="grid grid-cols-[auto_1fr_1fr_1fr_1fr_1fr_auto] gap-4 p-4 border-b border-border text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">
+          <span className="w-10 flex justify-center items-center"><input type="checkbox" className="w-4 h-4 accent-primary" checked={filteredClients.length > 0 && selectedIds.length === filteredClients.length} onChange={toggleSelectAll} /></span>
+              <span>Utilisateur</span>
           <span>Protocole</span>
           <span>Expiration</span>
           <span>Statut</span>
@@ -187,7 +263,7 @@ export default function ResellerAccounts() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="grid grid-cols-6 gap-4 p-4 border-b border-border last:border-0 hover:bg-secondary/20 transition-all items-center"
+                className="grid grid-cols-[auto_1fr_1fr_1fr_1fr_1fr_auto] gap-4 p-4 border-b border-border last:border-0 hover:bg-secondary/20 transition-all items-center"
               >
                 <span className="text-sm font-mono text-foreground font-semibold">{acc.username}</span>
                 <span className="protocol-badge border-primary/30 text-primary bg-primary/10 w-fit">
