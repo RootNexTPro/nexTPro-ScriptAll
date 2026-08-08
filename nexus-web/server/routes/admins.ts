@@ -51,6 +51,23 @@ router.post('/', requireSuperAdmin, async (req: AuthRequest, res: Response): Pro
 
   logAction(req.admin!.id, req.admin!.username, 'CREATE_ADMIN', 'admin', id, { username, role: adminRole }, req.ip || null);
 
+  // Trigger Telegram Notification
+  try {
+    const fetch = require('node-fetch');
+    const settingsPath = process.env.NEXUS_DB_DIR ? (process.env.NEXUS_DB_DIR + '/settings.json') : '/etc/nexus-tunnel-web/settings.json';
+    if (require('fs').existsSync(settingsPath)) {
+      const s = JSON.parse(require('fs').readFileSync(settingsPath, 'utf8'));
+      if (s.telegramBot && s.telegramChannel) {
+        const msg = `📢 <b>Nouveau compte ${adminRole.toUpperCase()} créé</b>\n👤 <b>Username:</b> ${username}\n✨ Bienvenue sur Nexus Tunnel Pro !`;
+        fetch(`https://api.telegram.org/bot${s.telegramBot}/sendMessage`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ chat_id: s.telegramChannel, text: msg, parse_mode: 'HTML' })
+        }).catch(() => {});
+      }
+    }
+  } catch(e) {}
+
   res.status(201).json({ id, username, role: adminRole, status: 'active' });
 });
 

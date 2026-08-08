@@ -513,14 +513,14 @@ export function createZipVpnAccount(username: string, password: string, days: nu
     const zivpnConfigJson = '/etc/zivpn/config.json';
     if (fs.existsSync(zivpnConfigJson)) {
       try {
-        const configData = JSON.parse(fs.readFileSync(zivpnConfigJson, 'utf8'));
-        if (configData && Array.isArray(configData.config)) {
-          if (!configData.config.includes(password)) {
-            configData.config.push(password);
-            fs.writeFileSync(zivpnConfigJson, JSON.stringify(configData, null, 2));
-          }
+        let raw = fs.readFileSync(zivpnConfigJson, 'utf8');
+        if (!raw.includes('"' + password + '"')) {
+           raw = raw.replace(/"config":\s*\[/, '"config": [\n      "' + password + '",');
+           fs.writeFileSync(zivpnConfigJson, raw, 'utf8');
         }
-      } catch {}
+      } catch (e) {
+         console.error('ZiVPN config update error:', e);
+      }
     }
 
     spawnSync('systemctl', ['restart', 'zivpn'], { encoding: 'utf8' });
@@ -624,11 +624,11 @@ export function deleteZipVpnAccount(username: string): AccountResult {
     // Remove password from config.json
     if (passToRemove && fs.existsSync(zivpnConfigJson)) {
       try {
-        const configData = JSON.parse(fs.readFileSync(zivpnConfigJson, 'utf8'));
-        if (configData && Array.isArray(configData.config)) {
-          configData.config = configData.config.filter((p: string) => p !== passToRemove);
-          fs.writeFileSync(zivpnConfigJson, JSON.stringify(configData, null, 2));
-        }
+        let raw = fs.readFileSync(zivpnConfigJson, 'utf8');
+        raw = raw.replace(new RegExp('\\s*"' + passToRemove + '",?', 'g'), '');
+        // Clean up trailing commas just in case
+        raw = raw.replace(/,\s*\]/g, '\n    ]');
+        fs.writeFileSync(zivpnConfigJson, raw, 'utf8');
       } catch {}
     }
 
