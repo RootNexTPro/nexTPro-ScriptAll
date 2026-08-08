@@ -265,6 +265,7 @@ export default function ResellerAccounts() {
                 transition={{ delay: i * 0.05 }}
                 className="grid grid-cols-[auto_1fr_1fr_1fr_1fr_1fr_auto] gap-4 p-4 border-b border-border last:border-0 hover:bg-secondary/20 transition-all items-center"
               >
+                <span className="w-10 flex justify-center items-center"><input type="checkbox" className="w-4 h-4 accent-primary" checked={selectedIds.includes(acc.id)} onChange={() => toggleSelect(acc.id)} /></span>
                 <span className="text-sm font-mono text-foreground font-semibold">{acc.username}</span>
                 <span className="protocol-badge border-primary/30 text-primary bg-primary/10 w-fit">
                   {acc.protocol?.toUpperCase()}
