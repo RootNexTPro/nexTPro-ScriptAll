@@ -210,6 +210,14 @@ export default function ResellerAccounts() {
 
       {selectedIds.length > 0 && (
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4 flex items-center justify-between sticky top-4 z-10 bg-card/90 backdrop-blur-xl border-primary/50 shadow-[0_0_20px_rgba(138,43,226,0.3)]">
+          {isBulking && (
+            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-20 flex items-center justify-center rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm font-semibold text-primary">Traitement en cours...</span>
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-4">
             <span className="protocol-badge border-primary text-primary bg-primary/20">{selectedIds.length} comptes sélectionnés</span>
           </div>

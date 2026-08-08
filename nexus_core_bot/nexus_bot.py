@@ -3,6 +3,9 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import json
 import os
 import logging
+import sqlite3
+import datetime
+import uuid
 from modules import system_core, ssh_core, admin_core, xray_core, zivpn_core
 
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s %(levelname)s %(message)s')
@@ -17,6 +20,26 @@ def load_config():
 
 config = load_config()
 if not config: exit(1)
+
+
+def sync_to_web_panel(username, password, protocol, duration, created_by="telegram_bot"):
+    try:
+        db_path = "/etc/nexus-tunnel-web/nexus.db"
+        if not os.path.exists(db_path): return
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        now = datetime.datetime.now()
+        expires = now + datetime.timedelta(days=int(duration))
+        expires_str = expires.strftime('%Y-%m-%d %H:%M:%S')
+        now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+
+        c.execute('''INSERT INTO clients (id, username, password, protocol, expires_at, status, created_by, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                  (str(uuid.uuid4()), username, password, protocol, expires_str, 'active', created_by, now_str, now_str))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Error syncing to web panel: {e}")
 
 bot = telebot.TeleBot(config.get('bot_token'))
 SUPER_ADMIN = int(config.get('super_admin'))

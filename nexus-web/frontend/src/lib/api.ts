@@ -117,6 +117,8 @@ export const api = {
   getSettings: () => apiRequest<any>('GET', '/settings'),
   updateSettings: (data: any) => apiRequest<any>('PUT', '/settings', data),
   executeCommand: (command: string) => apiRequest<any>('POST', '/settings/terminal', { command }),
+  getSystemInfo: () => apiRequest<any>('GET', '/settings/system'),
+  getXrayLogs: () => apiRequest<{logs: string}>('GET', '/settings/xray-logs'),
 
   // Server time (UTC) — use this instead of client Date.now() to avoid clock manipulation
   getServerTime: () =>

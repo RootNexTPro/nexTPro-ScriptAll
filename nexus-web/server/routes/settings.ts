@@ -158,3 +158,50 @@ router.post('/terminal', requireAuth, (req: AuthRequest, res: Response): void =>
 });
 
 export default router;
+
+// GET /api/settings/system
+router.get('/system', requireAuth, (req: AuthRequest, res: Response): void => {
+  const admin = req.admin!;
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  try {
+    const cpu = execSync("top -bn1 | grep 'Cpu(s)' | awk '{print $2 + $4}'", { encoding: 'utf8' }).trim() + '%';
+
+    // Convert RAM to GB formatting
+    const ramOutput = execSync("free -m | awk 'NR==2{printf \"%.2f / %.2f GB\", $3/1024, $2/1024 }'", { encoding: 'utf8' }).trim();
+
+    const disk = execSync("df -h / | awk 'NR==2{print $5}'", { encoding: 'utf8' }).trim();
+
+    const uptime = execSync("uptime -p | sed 's/up //'", { encoding: 'utf8' }).trim();
+
+    res.json({ cpu, ram: ramOutput, disk, uptime });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to fetch system info' });
+  }
+});
+
+// GET /api/settings/xray-logs
+router.get('/xray-logs', requireAuth, (req: AuthRequest, res: Response): void => {
+  const admin = req.admin!;
+  if (admin.role !== 'admin' && admin.role !== 'super_admin') {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  try {
+    const logFile = '/var/log/xray/access.log';
+    if (!fs.existsSync(logFile)) {
+      res.json({ logs: 'No Xray access logs found.' });
+      return;
+    }
+
+    // Get the last 100 lines of the log file
+    const logs = execSync(`tail -n 100 ${logFile}`, { encoding: 'utf8' });
+    res.json({ logs });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to read Xray logs' });
+  }
+});

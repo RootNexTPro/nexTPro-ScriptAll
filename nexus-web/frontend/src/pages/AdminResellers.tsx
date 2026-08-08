@@ -49,6 +49,7 @@ export default function AdminResellers() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [selectedProtocols, setSelectedProtocols] = useState<Record<string, boolean>>({});
   const [protocolLimits, setProtocolLimits] = useState<Record<string, number>>({});
+  const [protocolExpiry, setProtocolExpiry] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -87,7 +88,7 @@ export default function AdminResellers() {
     const days = useCustomDuration ? parseInt(customDuration) || 30 : parseInt(newDuration);
     const bouquet = protocols
       .filter(p => selectedProtocols[p.id])
-      .map(p => ({ protocolId: p.id, maxAccounts: protocolLimits[p.id] || 10 }));
+      .map(p => ({ protocolId: p.id, maxAccounts: protocolLimits[p.id] || 10, expiry: protocolExpiry[p.id] || undefined }));
     try {
       await api.createReseller({ username: newName, password: newPassword, duration_days: days, bouquet });
       setNewName('');
@@ -121,12 +122,29 @@ export default function AdminResellers() {
   };
 
   const openEdit = (reseller: Reseller) => {
-    setEditReseller(reseller);
     setEditError('');
     setEditPassword('');
     setEditDuration('30');
+
     // Pre-populate bouquet
-    const bq: Record<string, boolean> = {};
+    const initialSelected: Record<string, boolean> = {};
+    const initialLimits: Record<string, number> = {};
+    const initialExpiry: Record<string, string> = {};
+
+    try {
+      const bouquet = JSON.parse(reseller.bouquet || '[]');
+      bouquet.forEach((b: any) => {
+        initialSelected[b.protocolId] = true;
+        initialLimits[b.protocolId] = b.maxAccounts;
+        if (b.expiry) initialExpiry[b.protocolId] = b.expiry;
+      });
+    } catch(e) {}
+
+    setEditSelectedProtocols(initialSelected);
+    setEditProtocolLimits(initialLimits);
+    setEditProtocolExpiry(initialExpiry);
+
+    setEditReseller(reseller);
     const lm: Record<string, number> = {};
     reseller.bouquet?.forEach(b => {
       bq[b.protocolId] = true;
@@ -146,6 +164,11 @@ export default function AdminResellers() {
     const payload: any = { bouquet };
     if (editDuration && parseInt(editDuration) > 0) payload.duration_days = parseInt(editDuration);
     if (editPassword.trim()) payload.password = editPassword.trim();
+
+    payload.bouquet = protocols
+      .filter(p => editSelectedProtocols[p.id])
+      .map(p => ({ protocolId: p.id, maxAccounts: editProtocolLimits[p.id] || 10, expiry: editProtocolExpiry[p.id] || undefined }));
+
     try {
       await api.updateReseller(editReseller.id, payload);
       setEditReseller(null);
@@ -271,15 +294,26 @@ export default function AdminResellers() {
                         <span className="text-sm font-semibold text-foreground">{proto.name}</span>
                       </div>
                       {selectedProtocols[proto.id] && (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={e => e.stopPropagation()}>
-                          <label className="text-[10px] text-muted-foreground mb-1 block">Max comptes</label>
-                          <input
-                            type="number"
-                            value={protocolLimits[proto.id] || 10}
-                            onChange={e => setLimit(proto.id, parseInt(e.target.value) || 0)}
-                            className="input-dark w-full text-xs py-1.5 px-2"
-                            min="1"
-                          />
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={e => e.stopPropagation()} className="space-y-2">
+                          <div>
+                            <label className="text-[10px] text-muted-foreground mb-1 block">Max comptes</label>
+                            <input
+                              type="number"
+                              value={protocolLimits[proto.id] || 10}
+                              onChange={e => setLimit(proto.id, parseInt(e.target.value) || 0)}
+                              className="input-dark w-full text-xs py-1.5 px-2"
+                              min="1"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-muted-foreground mb-1 block">Expiration Spécifique</label>
+                            <input
+                              type="date"
+                              value={protocolExpiry[proto.id] || ''}
+                              onChange={e => setExpiry(proto.id, e.target.value)}
+                              className="input-dark w-full text-xs py-1.5 px-2"
+                            />
+                          </div>
                         </motion.div>
                       )}
                     </div>
