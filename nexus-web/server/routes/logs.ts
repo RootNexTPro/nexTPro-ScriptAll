@@ -74,3 +74,14 @@ router.get('/stats', requireAuth, (_req: AuthRequest, res: Response): void => {
 });
 
 export default router;
+
+// DELETE /api/logs
+router.delete('/', requireAuth, (req: AuthRequest, res: Response): void => {
+  if (req.admin?.role !== 'super_admin') {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+  const db = getDb();
+  db.prepare('DELETE FROM audit_logs').run();
+  res.json({ success: true });
+});

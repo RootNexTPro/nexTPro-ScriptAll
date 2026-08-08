@@ -286,3 +286,48 @@ const portList = configuredPort > 0
 tryListen(portList, 0);
 
 export default app;
+
+// Daily cron job for Telegram notifications (expirations)
+import https from 'https';
+import fs_extra from 'fs'; // use distinct name to avoid shadowing
+
+setInterval(async () => {
+  const settingsPath = process.env.NEXUS_DB_DIR ? (process.env.NEXUS_DB_DIR + '/settings.json') : '/etc/nexus-tunnel-web/settings.json';
+  if (!fs_extra.existsSync(settingsPath)) return;
+  try {
+    const s = JSON.parse(fs_extra.readFileSync(settingsPath, 'utf8'));
+    if (!s.telegramBot || !s.telegramChannel) return;
+
+    const db = getDb();
+    // Check resellers expiring in exactly 1 day
+    const expiringSoon = db.prepare(`
+      SELECT username, expiry_date
+      FROM admins
+      WHERE role = 'reseller'
+      AND status = 'active'
+      AND expiry_date IS NOT NULL
+      AND date(expiry_date) = date('now', '+1 day')
+    `).all() as any[];
+
+    for (const r of expiringSoon) {
+      const msg = `⚠️ <b>RAPPEL D'EXPIRATION</b>\n\n👤 <b>Revendeur:</b> ${r.username}\n⏳ Votre compte expire dans exactement <b>1 jour</b> (${r.expiry_date}).\n\nVeuillez renouveler votre abonnement.`;
+
+      const data = JSON.stringify({ chat_id: s.telegramChannel, text: msg, parse_mode: 'HTML' });
+      const options = {
+        hostname: 'api.telegram.org',
+        port: 443,
+        path: '/bot' + s.telegramBot + '/sendMessage',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(data)
+        }
+      };
+
+      const req = https.request(options, (res) => {});
+      req.on('error', (e) => {});
+      req.write(data);
+      req.end();
+    }
+  } catch(e) {}
+}, 24 * 60 * 60 * 1000);
