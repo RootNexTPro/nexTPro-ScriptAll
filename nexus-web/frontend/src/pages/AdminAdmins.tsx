@@ -165,14 +165,16 @@ export default function AdminAdmins() {
                 </select>
               </div>
 
-              <button
+              <div className="flex items-center gap-3 mt-4">
+                <button
                   onClick={handleCreate}
-                  className="btn-primary"
-                  disabled={!newName.trim() || !newPassword.trim() || saving}
+                  className="btn-primary px-6"
+                  disabled={saving}
                 >
                   {saving ? 'Création...' : "Créer l'Admin"}
                 </button>
                 <button onClick={() => setShowCreate(false)} className="btn-ghost">Annuler</button>
+              </div>
               </div>
             </div>
           </motion.div>

@@ -11,6 +11,7 @@ import plansRouter from './routes/plans';
 import logsRouter from './routes/logs';
 import resellersRouter from './routes/resellers';
 import settingsRouter from './routes/settings';
+import securityRouter from './routes/security';
 import { suspendSshAccount, deleteSshAccount, deleteXrayAccount, deleteZipVpnAccount } from './scripts';
 
 // ─── Load configuration ────────────────────────────────────────────────────────
@@ -219,6 +220,7 @@ app.use('/api/plans', apiLimiter, plansRouter);
 app.use('/api/logs', apiLimiter, logsRouter);
 app.use('/api/resellers', apiLimiter, resellersRouter);
 app.use('/api/settings', apiLimiter, settingsRouter);
+app.use('/api/security', apiLimiter, securityRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {
