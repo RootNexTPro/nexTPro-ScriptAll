@@ -156,7 +156,16 @@ export default function AdminAdmins() {
                 </div>
               </div>
               <div className="flex gap-3 mt-4">
-                <button
+
+              <div>
+                <label className="text-xs text-muted-foreground uppercase tracking-wider mb-1 block">Rôle</label>
+                <select className="input-dark w-full" value={newRole} onChange={(e) => setNewRole(e.target.value)}>
+                  <option value="admin">Admin Simple</option>
+                  {isSuperAdmin && <option value="super_admin">Super Admin (Suprême)</option>}
+                </select>
+              </div>
+
+              <button
                   onClick={handleCreate}
                   className="btn-primary"
                   disabled={!newName.trim() || !newPassword.trim() || saving}
