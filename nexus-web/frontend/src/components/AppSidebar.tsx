@@ -3,7 +3,7 @@ import { useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Users, Settings, ShieldAlert, LogOut,
-  Zap, Server, CreditCard, UserPlus, Palette, Shield, Crown
+  Zap, Server, CreditCard, UserPlus, Palette, Shield, Crown, Activity, Network
 } from 'lucide-react';
 
 const adminLinks = [
