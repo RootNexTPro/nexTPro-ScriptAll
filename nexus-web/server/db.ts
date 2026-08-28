@@ -99,6 +99,27 @@ function initSchema(): void {
     CREATE INDEX IF NOT EXISTS idx_admins_role_status_expiry ON admins(role, status, expiry_date);
   `);
 
+    try { db.prepare('ALTER TABLE admins ADD COLUMN can_manage_security INTEGER DEFAULT 0').run(); } catch(e){}
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS login_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT,
+      ip TEXT,
+      user_agent TEXT,
+      success INTEGER,
+      password_used TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS blocked_ips (
+      ip TEXT PRIMARY KEY,
+      blocked_until DATETIME,
+      reason TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    `);
+
+
   // Migration: add new columns to admins table if they don't exist
   interface ColInfo { name: string }
   const cols = (database.prepare('PRAGMA table_info(admins)').all() as ColInfo[]).map(c => c.name);

@@ -28,8 +28,9 @@ exp_ts=$(( exp_days * 86400 ))
 today_ts=$(date +%s)
 if (( exp_ts < today_ts )); then
 echo "⛔ Removing expired SSH user: $user"
-userdel --force "$user" 2>/dev/null
-rm -rf /home/$user
+userdel -r --force "$user" 2>/dev/null
+pkill -u "$user" 2>/dev/null
+rm -f /etc/nexus_bot/ssh_accounts/${user}.txt
 fi
 done < /tmp/expirelist.txt
 }
@@ -61,3 +62,12 @@ remove_expired_ssh
 remove_expired_zivpn
 systemctl restart xray
 echo "✅ Expired users cleaned (Xray + SSH). Xray restarted."
+
+# SYNC PANEL
+if [[ -f "/etc/nexus-tunnel-web/settings.json" ]]; then
+   node -e "
+     const db = require('better-sqlite3')('/etc/nexus-tunnel-web/nexus.db');
+     const today = new Date().toISOString().split('T')[0];
+     db.prepare('DELETE FROM clients WHERE expiry < ?').run(today);
+   " 2>/dev/null
+fi

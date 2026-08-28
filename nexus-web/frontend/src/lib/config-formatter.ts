@@ -61,7 +61,7 @@ function formatSSH(data: AccountData, server: ServerConfig): string {
 ┃ WS TLS       : 443
 ┃ WS OV        : 8181
 ┃ UDPGW        : 7100–7900
-┃ Squid        : 3128, 8880
+┃ Squid        : 3128
 ┃ OpenVPN      : TCP 1194, SSL 2200, OHP 8000
 ┃ Slow DNS     : 22,53,5300,80,443
 ●${LINE}●

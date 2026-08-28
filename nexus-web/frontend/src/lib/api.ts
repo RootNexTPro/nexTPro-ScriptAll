@@ -139,6 +139,13 @@ export const api = {
       : '';
     return apiRequest<any>('GET', `/logs${qs}`);
   },
+  // Security Permissions
+  getSecurityLogs: () => apiRequest<any>('GET', '/security/logs'),
+  blockIp: (data: { ip: string; durationMinutes?: number; reason?: string }) => apiRequest<any>('POST', '/security/block', data),
+  unblockIp: (data: { ip: string }) => apiRequest<any>('POST', '/security/unblock', data),
+  getAdminSecurityPermissions: () => apiRequest<any>('GET', '/security/permissions'),
+  updateAdminSecurityPermission: (data: { adminId: string; canManage: boolean }) => apiRequest<any>('POST', '/security/permissions', data),
+  getMySecurityPermission: () => apiRequest<any>('GET', '/security/my-permissions'),
 };
 
 export function saveToken(token: string): void {

@@ -118,7 +118,7 @@ export function createSshAccount(username: string, password: string, days: numbe
         ws_ntls_ports: '80, 8880',
         ws_tls_port: 443,
         udpgw_ports: '7100-7900',
-        squid_ports: '3128, 8880',
+        squid_ports: '3128',
         openvpn_ports: 'TCP 1194, SSL 2200, OHP 8000',
         slowdns_ports: '22,53,5300,80,443',
         udp_custom_link: `${domain}:1-65535@${username}:${password}`,
