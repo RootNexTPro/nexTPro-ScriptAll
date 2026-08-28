@@ -8,6 +8,7 @@ import {
 
 const adminLinks = [
     { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/admin/create', icon: Zap, label: 'Créer un Compte' },
     { to: '/admin/resellers', icon: Users, label: 'Revendeurs' },
     { to: '/admin/admins', icon: Shield, label: 'Admins' },
     { to: '/admin/accounts', icon: Activity, label: 'Comptes VPN' },
