@@ -21,6 +21,7 @@ export default function AdminAdmins() {
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [newRole, setNewRole] = useState('admin');
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -54,7 +55,7 @@ export default function AdminAdmins() {
     setSaving(true);
     setError('');
     try {
-      await api.createAdmin({ username: newName, password: newPassword, role: 'admin' });
+      await api.createAdmin({ username: newName, password: newPassword, role: newRole });
       setNewName('');
       setNewPassword('');
       setShowCreate(false);
