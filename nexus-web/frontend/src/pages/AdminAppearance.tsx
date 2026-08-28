@@ -1,20 +1,42 @@
 import { useState } from 'react';
-import { defaultSiteSettings } from '@/lib/mock-data';
+import { useEffect } from 'react';
+import { api } from '@/lib/api';
 import { Palette, Monitor, Type } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function AdminAppearance() {
-  const [settings, setSettings] = useState(defaultSiteSettings);
+  const [settings, setSettings] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    api.getSettings().then(data => {
+      setSettings(data);
+      if (data.primaryColor) document.documentElement.style.setProperty('--primary', data.primaryColor);
+      if (data.accentColor) document.documentElement.style.setProperty('--accent', data.accentColor);
+      setLoading(false);
+    }).catch(err => {
+      console.error(err);
+      setLoading(false);
+    });
+  }, []);
+
 
   const update = (field: string, value: any) => {
     setSettings(prev => ({ ...prev, [field]: value }));
     setSaved(false);
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.updateSettings(settings);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (e) {
+      alert('Erreur lors de la sauvegarde');
+    }
+    setSaving(false);
   };
 
   const applyPreset = (primary: string, accent: string) => {
@@ -30,6 +52,9 @@ export default function AdminAppearance() {
       if (field === 'primaryColor') document.documentElement.style.setProperty('--primary', value);
       if (field === 'accentColor') document.documentElement.style.setProperty('--accent', value);
   };
+
+    if (loading) return <div className="p-8 text-center text-muted-foreground">Chargement...</div>;
+  if (!settings) return null;
 
   return (
     <div className="space-y-6">

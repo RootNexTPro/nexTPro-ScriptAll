@@ -12,6 +12,7 @@ import AdminAdmins from "./pages/AdminAdmins";
 import AdminProtocols from "./pages/AdminProtocols";
 import AdminServer from "./pages/AdminServer";
 import AdminAppearance from "./pages/AdminAppearance";
+import AdminSecurity from "./pages/AdminSecurity";
 import AdminSettings from "./pages/AdminSettings";
 import ResellerDashboard from "./pages/ResellerDashboard";
 import ResellerCreateAccount from "./pages/ResellerCreateAccount";
@@ -54,6 +55,7 @@ function AppRoutes() {
         <Route path="/admin/protocols" element={<AdminProtocols />} />
         <Route path="/admin/server" element={<AdminServer />} />
         <Route path="/admin/appearance" element={<AdminAppearance />} />
+          <Route path="/admin/security" element={<AdminSecurity />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
         {/* Reseller routes */}
         <Route path="/reseller" element={<ResellerDashboard />} />

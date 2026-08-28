@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 import socket, threading, selectors, sys, time, getopt
+def find_free_port(start_port=8880):
+    port = start_port
+    while port < 65535:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(('127.0.0.1', port)) != 0: return port
+        port += 1
+    return 8880
 
 LISTENING_ADDR = '0.0.0.0'
-LISTENING_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8880
+LISTENING_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else find_free_port(8880)
 PASS = ''
 BUFLEN = 4096 * 4
 TIMEOUT = 60

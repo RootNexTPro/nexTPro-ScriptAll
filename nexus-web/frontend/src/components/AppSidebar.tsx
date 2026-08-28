@@ -2,21 +2,21 @@ import { useAuth } from '@/lib/auth-context';
 import { useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  LayoutDashboard, Users, Settings, LogOut,
+  LayoutDashboard, Users, Settings, ShieldAlert, LogOut,
   Zap, Server, CreditCard, UserPlus, Palette, Shield, Crown
 } from 'lucide-react';
 
 const adminLinks = [
-  { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/admin/resellers', icon: Users, label: 'Revendeurs' },
-  { to: '/admin/admins', icon: Crown, label: 'Administrateurs' },
-  { to: '/admin/create', icon: UserPlus, label: 'Créer un Compte' },
-  { to: '/admin/accounts', icon: CreditCard, label: 'Tous les Comptes' },
-  { to: '/admin/protocols', icon: Zap, label: 'Protocoles' },
-  { to: '/admin/server', icon: Server, label: 'Serveur' },
-  { to: '/admin/appearance', icon: Palette, label: 'Apparence' },
-  { to: '/admin/settings', icon: Settings, label: 'Paramètres' },
-];
+    { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/admin/resellers', icon: Users, label: 'Revendeurs' },
+    { to: '/admin/admins', icon: Shield, label: 'Admins' },
+    { to: '/admin/accounts', icon: Activity, label: 'Comptes VPN' },
+    { to: '/admin/protocols', icon: Network, label: 'Protocoles' },
+    { to: '/admin/server', icon: Server, label: 'Serveur' },
+    { to: '/admin/appearance', icon: Palette, label: 'Apparence' },
+    { to: '/admin/security', icon: ShieldAlert, label: 'Sécurité' },
+    { to: '/admin/settings', icon: Settings, label: 'Paramètres' },
+  ];
 
 const resellerLinks = [
   { to: '/reseller', icon: LayoutDashboard, label: 'Dashboard' },

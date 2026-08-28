@@ -15,19 +15,27 @@ router.post('/login', async (req: AuthRequest, res: Response): Promise<void> => 
     res.status(400).json({ error: 'Username and password required' });
     return;
   }
-
   const db = getDb();
-  const admin = db.prepare(
-    'SELECT id, username, password_hash, role, status FROM admins WHERE username = ?'
-  ).get(username) as { id: string; username: string; password_hash: string; role: string; status: string } | undefined;
-
-  // Use async bcrypt.compare so the event loop is not blocked during heavy concurrent logins
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  const userAgent = req.headers['user-agent'] || 'unknown';
+  const blockCheck = db.prepare('SELECT blocked_until, reason FROM blocked_ips WHERE ip = ?').get(ip) as any;
+  if (blockCheck) {
+    const blockedUntil = new Date(blockCheck.blocked_until).getTime();
+    if (Date.now() < blockedUntil || blockCheck.blocked_until === 'forever') {
+      res.status(403).json({ error: `Connexion refusée. Motif: ${blockCheck.reason}` });
+      return;
+    } else {
+      db.prepare('DELETE FROM blocked_ips WHERE ip = ?').run(ip);
+    }
+  }
+  const admin = db.prepare('SELECT id, username, password_hash, role, status FROM admins WHERE username = ?').get(username) as { id: string; username: string; password_hash: string; role: string; status: string } | undefined;
   const passwordMatch = admin ? await bcrypt.compare(password, admin.password_hash) : false;
-
   if (!admin || !passwordMatch) {
+    db.prepare(`INSERT INTO login_logs (username, ip, user_agent, success, password_used) VALUES (?, ?, ?, 0, ?)`).run(username, ip.toString(), userAgent, password);
     res.status(401).json({ error: 'Identifiants invalides' });
     return;
   }
+  db.prepare(`INSERT INTO login_logs (username, ip, user_agent, success, password_used) VALUES (?, ?, ?, 1, '')`).run(username, ip.toString(), userAgent);
 
   if (admin.status !== 'active') {
     res.status(403).json({ error: 'Compte suspendu' });

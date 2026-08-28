@@ -121,3 +121,17 @@ To install the web panel, run the menu (`menu`) and select `[18] NEXUS TUNNEL WE
 
 ### 📅 2025-09-16
 - Updated from stunnel4 to stunnel5
+
+## 🚀 Dernières Nouveautés (Mise à jour)
+
+### 1. Correction et Amélioration du Port WebSocket (8880)
+- **Conflit Résolu :** Squid Proxy écoute désormais uniquement sur le port 3128.
+- **Port Intelligent :** Le script de proxy WebSocket (Dropbear & Stunnel) utilise par défaut le port 8880 ou 700. Si ce port est déjà occupé, le script **cherche automatiquement le prochain port libre** et s'y attache, garantissant une création de compte SSH fluide.
+
+### 2. Menu Sécurité Avancée & Blocage d'IP (Web Panel)
+- **Historique en temps réel :** Visualisez les tentatives de connexion au panel (réussites en vert, échecs en rouge) avec les adresses IP, identifiants et mots de passe essayés.
+- **Blocage Manuel :** Bloquez des adresses IP suspectes pour une durée déterminée (en minutes) ou de façon définitive (basé sur l'heure du serveur protégé contre les manipulations côté client).
+- **Gestion des Permissions :** L'Admin Suprême (Super Admin) possède le monopole de ce menu, mais peut **autoriser ou révoquer l'accès** de ce menu à n'importe quel Admin Simple via l'interface.
+
+### 3. Suppression Intégrale Automatisée
+- Le Cron job d'expiration nocturne (`/usr/bin/xp`) a été réécrit. Désormais, tout compte (SSH, Xray, ZipVPN, etc.) arrivé à expiration n'est plus seulement verrouillé, mais **définitivement supprimé** (fichiers, sessions actives, terminal, bot Telegram et bases de données SQLite du Web Panel nettoyés simultanément).
